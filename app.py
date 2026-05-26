@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 
+
 from utils.data_loader import (
     load_dataset,
     get_basic_dataset_info,
@@ -8,6 +9,12 @@ from utils.data_loader import (
     get_selected_dataframe,
     get_numerical_columns,
     get_categorical_columns
+)
+
+from utils.descriptive_stats import (
+    calculate_descriptive_statistics,
+    create_descriptive_stats_table,
+    interpret_descriptive_statistics
 )
 
 
@@ -383,5 +390,72 @@ elif st.session_state.step == "selected_preview":
             st.session_state.step = "select_columns"
             st.rerun()
 
-    with col_continue:
-        st.button("Continue to Analysis Coming Next", type="primary")
+    with col_continue:  # ← THIS LINE was de-indented in the original, causing the bug
+        if st.button("Continue to Descriptive Statistics", type="primary"):
+            st.session_state.step = "descriptive_stats"
+            st.rerun()
+
+
+# ------------------------------------------------------------
+# STEP 4: Descriptive Statistics
+# ------------------------------------------------------------
+
+elif st.session_state.step == "descriptive_stats":
+    selected_df = st.session_state.selected_df
+
+    st.subheader("Step 4: Descriptive Statistics")
+
+    st.info(
+        "Select a numerical column to calculate mean, median, mode, variance, standard deviation, skewness, and kurtosis."
+    )
+
+    numerical_columns = get_numerical_columns(selected_df)
+
+    if len(numerical_columns) == 0:
+        st.warning("No numerical columns found in the selected dataset.")
+
+        if st.button("Back to Selected Dataset"):
+            st.session_state.step = "selected_preview"
+            st.rerun()
+
+    else:
+        selected_column = st.selectbox(
+            "Choose a numerical column",
+            numerical_columns
+        )
+
+        if selected_column:
+
+            stats = calculate_descriptive_statistics(selected_df, selected_column)
+            stats_table = create_descriptive_stats_table(stats)
+            interpretations = interpret_descriptive_statistics(stats)
+
+            st.write(f"### Descriptive Statistics for `{selected_column}`")
+
+            col1, col2 = st.columns([1, 1])
+
+            with col1:
+                st.dataframe(stats_table, use_container_width=True)
+
+            with col2:
+                st.write("### Quick Interpretation")
+
+                for interpretation in interpretations:
+                    st.write(f"- {interpretation}")
+
+            st.write("### Selected Column Preview")
+
+            preview_df = selected_df[[selected_column]].head(20)
+            st.dataframe(preview_df, use_container_width=True)
+
+            st.divider()
+
+            col_back, col_next = st.columns([1, 2])
+
+            with col_back:
+                if st.button("Back to Selected Dataset"):
+                    st.session_state.step = "selected_preview"
+                    st.rerun()
+
+            with col_next:
+                st.button("Continue to Visualizations Coming Next", type="primary")
