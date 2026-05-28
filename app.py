@@ -17,6 +17,17 @@ from utils.descriptive_stats import (
     interpret_descriptive_statistics
 )
 
+from utils.visualizations import (
+    plot_histogram,
+    plot_boxplot,
+    plot_kde_pdf,
+    plot_cdf,
+    plot_qq,
+    plot_pmf,
+    is_discrete_numeric,
+    prepare_numeric_data,
+    get_plot_interpretation
+)
 
 # ------------------------------------------------------------
 # Page configuration
@@ -458,4 +469,155 @@ elif st.session_state.step == "descriptive_stats":
                     st.rerun()
 
             with col_next:
-                st.button("Continue to Visualizations Coming Next", type="primary")
+                if st.button("Continue to Visualizations", type="primary"):
+                    st.session_state.step = "visualizations"
+                    st.rerun()
+
+
+# ------------------------------------------------------------
+# STEP 5: Visualizations
+# ------------------------------------------------------------
+
+if st.session_state.step == "visualizations":
+
+    selected_df = st.session_state.selected_df
+
+    st.subheader("Step 5: Data Visualizations")
+
+    st.info(
+        "Select a numerical column to view histogram, boxplot, estimated PDF/KDE, CDF, Q-Q plot, and PMF if suitable."
+    )
+
+    numerical_columns = get_numerical_columns(selected_df)
+
+    if len(numerical_columns) == 0:
+        st.warning("No numerical columns found in the selected dataset.")
+
+        if st.button("Back to Descriptive Statistics"):
+            st.session_state.step = "descriptive_stats"
+            st.rerun()
+
+    else:
+        selected_column = st.selectbox(
+            "Choose a numerical column for visualization",
+            numerical_columns,
+            key="visualization_column"
+        )
+
+        clean_data = prepare_numeric_data(selected_df, selected_column)
+
+        st.write(f"### Visualizations for `{selected_column}`")
+
+        plot_option = st.radio(
+            "Choose visualization type",
+            [
+                "Histogram",
+                "Boxplot",
+                "Estimated PDF / KDE",
+                "CDF",
+                "Q-Q Plot",
+                "PMF"
+            ],
+            horizontal=True
+        )
+
+        st.divider()
+
+        plot_col, interpretation_col = st.columns([1.25, 1])
+
+        fig = None
+
+        with plot_col:
+            st.write(f"#### {plot_option}")
+
+            if plot_option == "Histogram":
+                bins = st.slider("Number of bins", min_value=5, max_value=60, value=20)
+                fig = plot_histogram(selected_df, selected_column, bins=bins)
+                st.pyplot(fig)
+
+            elif plot_option == "Boxplot":
+                fig = plot_boxplot(selected_df, selected_column)
+                st.pyplot(fig)
+
+            elif plot_option == "Estimated PDF / KDE":
+                fig = plot_kde_pdf(selected_df, selected_column)
+                st.pyplot(fig)
+
+            elif plot_option == "CDF":
+                fig = plot_cdf(selected_df, selected_column)
+                st.pyplot(fig)
+
+            elif plot_option == "Q-Q Plot":
+                fig = plot_qq(selected_df, selected_column)
+                st.pyplot(fig)
+
+            elif plot_option == "PMF":
+                if is_discrete_numeric(clean_data):
+                    fig = plot_pmf(selected_df, selected_column)
+                    st.pyplot(fig)
+                else:
+                    st.warning(
+                        "This column does not look discrete. PMF is mainly suitable for discrete numerical variables."
+                    )
+
+        with interpretation_col:
+            with st.container(border=True):
+                st.write("#### Plot Interpretation")
+
+                plot_interpretations = get_plot_interpretation(
+                    selected_df,
+                    selected_column,
+                    plot_option
+                )
+
+                for interpretation in plot_interpretations:
+                    st.write(f"- {interpretation}")
+
+                st.divider()
+
+                st.write("#### What this plot is used for")
+
+                if plot_option == "Histogram":
+                    st.write(
+                        "A histogram shows how often values fall into different ranges. "
+                        "It helps identify shape, spread, skewness, and possible unusual patterns."
+                    )
+
+                elif plot_option == "Boxplot":
+                    st.write(
+                        "A boxplot summarizes the median, quartiles, spread, and possible outliers."
+                    )
+
+                elif plot_option == "Estimated PDF / KDE":
+                    st.write(
+                        "A KDE curve estimates the probability density of a continuous variable. "
+                        "It is useful for understanding where values are concentrated."
+                    )
+
+                elif plot_option == "CDF":
+                    st.write(
+                        "A CDF shows the probability that a value is less than or equal to a certain point."
+                    )
+
+                elif plot_option == "Q-Q Plot":
+                    st.write(
+                        "A Q-Q plot compares the selected data against a normal distribution. "
+                        "If points follow the line, the data is closer to normal."
+                    )
+
+                elif plot_option == "PMF":
+                    st.write(
+                        "A PMF shows the probability of each discrete value."
+                    )
+
+        st.divider()
+
+        col_back, col_next = st.columns([1, 2])
+
+        with col_back:
+            if st.button("Back to Descriptive Statistics"):
+                st.session_state.step = "descriptive_stats"
+                st.rerun()
+
+        with col_next:
+            st.button("Continue to Normality Tests Coming Next", type="primary")
