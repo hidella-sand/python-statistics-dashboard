@@ -29,6 +29,35 @@ from utils.visualizations import (
     get_plot_interpretation
 )
 
+
+from utils.normality_tests import (
+    run_all_normality_tests,
+    create_normality_results_table,
+    get_overall_normality_conclusion,
+    get_test_explanation
+)
+
+from utils.t_tests import (
+    run_one_sample_ttest,
+    plot_one_sample_ttest,
+    run_independent_ttest,
+    plot_independent_ttest,
+    run_paired_ttest,
+    plot_paired_ttest,
+    create_ttest_result_table,
+    get_ttest_interpretation
+)
+
+from utils.anova_tests import (
+    run_one_way_anova,
+    run_tukey_hsd,
+    plot_one_way_anova,
+    run_two_way_anova,
+    plot_two_way_interaction,
+    get_one_way_anova_interpretation,
+    get_two_way_anova_interpretation
+)
+
 # ------------------------------------------------------------
 # Page configuration
 # ------------------------------------------------------------
@@ -620,4 +649,627 @@ if st.session_state.step == "visualizations":
                 st.rerun()
 
         with col_next:
-            st.button("Continue to Normality Tests Coming Next", type="primary")
+            if st.button("Continue to Normality Tests", type="primary"):
+                st.session_state.step = "normality_tests"
+                st.rerun()
+
+
+# ------------------------------------------------------------
+# STEP 6: Normality Tests
+# ------------------------------------------------------------
+
+if st.session_state.step == "normality_tests":
+
+    selected_df = st.session_state.selected_df
+
+    st.subheader("Step 6: Normality Tests")
+
+    st.info(
+        "Select a numerical column and run Shapiro-Wilk, Kolmogorov-Smirnov, and Anderson-Darling tests."
+    )
+
+    numerical_columns = get_numerical_columns(selected_df)
+
+    if len(numerical_columns) == 0:
+        st.warning("No numerical columns found in the selected dataset.")
+
+        if st.button("Back to Visualizations"):
+            st.session_state.step = "visualizations"
+            st.rerun()
+
+    else:
+        selected_column = st.selectbox(
+            "Choose a numerical column for normality testing",
+            numerical_columns,
+            key="normality_column"
+        )
+
+        alpha = st.selectbox(
+            "Choose significance level (alpha)",
+            [0.01, 0.05, 0.10],
+            index=1
+        )
+
+        st.write(f"### Normality Test Results for `{selected_column}`")
+
+        hypothesis = get_test_explanation()
+
+        col_h0, col_h1 = st.columns(2)
+
+        with col_h0:
+            with st.container(border=True):
+                st.write("#### Null Hypothesis H0")
+                st.write(hypothesis["H0"])
+
+        with col_h1:
+            with st.container(border=True):
+                st.write("#### Alternative Hypothesis H1")
+                st.write(hypothesis["H1"])
+
+        results = run_all_normality_tests(selected_df, selected_column, alpha)
+        results_table = create_normality_results_table(results)
+        overall_conclusion = get_overall_normality_conclusion(results)
+
+        st.write("### Results Table")
+        st.dataframe(results_table, use_container_width=True)
+
+        st.write("### Overall Conclusion")
+
+        with st.container(border=True):
+            for line in overall_conclusion:
+                st.write(f"- {line}")
+
+        st.write("### Test-by-Test Notes")
+
+        for result in results:
+            with st.expander(result["Test"], expanded=False):
+                st.write(f"**Decision:** {result['Decision']}")
+                st.write(f"**Conclusion:** {result['Conclusion']}")
+                st.write(f"**Note:** {result['Note']}")
+
+                if result["Test"] == "Anderson-Darling":
+                    st.write(f"**Critical Value Used:** {result['Critical Value Used']}")
+                    st.write(f"**Significance Level Used:** {result['Significance Level Used']}")
+
+        st.divider()
+
+        st.write("### Visual Check")
+
+        plot_col1, plot_col2 = st.columns(2)
+
+        with plot_col1:
+            st.write("#### Histogram")
+            fig_hist = plot_histogram(selected_df, selected_column, bins=20)
+            st.pyplot(fig_hist)
+
+        with plot_col2:
+            st.write("#### Q-Q Plot")
+            fig_qq = plot_qq(selected_df, selected_column)
+            st.pyplot(fig_qq)
+
+        st.caption(
+            "Statistical tests are useful, but plots are also important. "
+            "For large datasets, even small deviations from normality may become statistically significant."
+        )
+
+        st.divider()
+
+        col_back, col_next = st.columns([1, 2])
+
+        with col_back:
+            if st.button("Back to Visualizations"):
+                st.session_state.step = "visualizations"
+                st.rerun()
+
+        with col_next:
+            if st.button("Continue to T-Tests", type="primary"):
+                st.session_state.step = "t_tests"
+                st.rerun()
+
+
+
+# ------------------------------------------------------------
+# STEP 7: T-Tests
+# ------------------------------------------------------------
+
+if st.session_state.step == "t_tests":
+
+    selected_df = st.session_state.selected_df
+
+    st.subheader("Step 7: T-Tests")
+
+    st.info(
+        "Use t-tests to compare means. This section includes one-sample, independent two-sample, and paired t-tests."
+    )
+
+    numerical_columns = get_numerical_columns(selected_df)
+
+    if len(numerical_columns) == 0:
+        st.warning("No numerical columns found in the selected dataset.")
+
+        if st.button("Back to Normality Tests"):
+            st.session_state.step = "normality_tests"
+            st.rerun()
+
+    else:
+        alpha = st.selectbox(
+            "Choose significance level (alpha)",
+            [0.01, 0.05, 0.10],
+            index=1,
+            key="ttest_alpha"
+        )
+
+        tab1, tab2, tab3 = st.tabs(
+            [
+                "One-sample t-test",
+                "Independent two-sample t-test",
+                "Paired t-test"
+            ]
+        )
+
+        # ----------------------------------------------------
+        # One-sample t-test
+        # ----------------------------------------------------
+        with tab1:
+            st.write("### One-sample t-test")
+
+            st.write(
+                "Use this when you want to compare the mean of one numerical variable "
+                "against a known or hypothesized value."
+            )
+
+            numeric_column = st.selectbox(
+                "Choose numerical column",
+                numerical_columns,
+                key="one_sample_numeric"
+            )
+
+            default_mean = float(pd.to_numeric(selected_df[numeric_column], errors="coerce").mean())
+
+            hypothesized_mean = st.number_input(
+                "Enter hypothesized mean",
+                value=default_mean,
+                key="hypothesized_mean"
+            )
+
+            if st.button("Run One-sample t-test", type="primary"):
+                try:
+                    result = run_one_sample_ttest(
+                        selected_df,
+                        numeric_column,
+                        hypothesized_mean,
+                        alpha
+                    )
+
+                    result_table = create_ttest_result_table(result)
+                    interpretation = get_ttest_interpretation(result)
+
+                    plot_col, interpretation_col = st.columns([1.2, 1])
+
+                    with plot_col:
+                        st.write("#### Visualization")
+                        fig = plot_one_sample_ttest(
+                            selected_df,
+                            numeric_column,
+                            hypothesized_mean
+                        )
+                        st.pyplot(fig)
+
+                    with interpretation_col:
+                        with st.container(border=True):
+                            st.write("#### Interpretation")
+                            for line in interpretation:
+                                st.write(f"- {line}")
+
+                    st.write("#### Result Table")
+                    st.dataframe(result_table, use_container_width=True)
+
+                except Exception as error:
+                    st.error(error)
+
+        # ----------------------------------------------------
+        # Independent two-sample t-test
+        # ----------------------------------------------------
+        with tab2:
+            st.write("### Independent two-sample t-test")
+
+            st.write(
+                "Use this when you want to compare the means of two independent groups."
+            )
+
+            numeric_column = st.selectbox(
+                "Choose numerical outcome column",
+                numerical_columns,
+                key="independent_numeric"
+            )
+
+            possible_group_columns = [
+                col for col in selected_df.columns
+                if col != numeric_column and selected_df[col].nunique(dropna=True) <= 20
+            ]
+
+            if len(possible_group_columns) == 0:
+                st.warning("No suitable grouping columns found. A grouping column should have a small number of categories.")
+
+            else:
+                group_column = st.selectbox(
+                    "Choose grouping column",
+                    possible_group_columns,
+                    key="independent_group_column"
+                )
+
+                group_values = selected_df[group_column].dropna().unique().tolist()
+
+                group1 = st.selectbox(
+                    "Choose Group 1",
+                    group_values,
+                    key="independent_group_1"
+                )
+
+                group2 = st.selectbox(
+                    "Choose Group 2",
+                    group_values,
+                    key="independent_group_2"
+                )
+
+                if group1 == group2:
+                    st.warning("Group 1 and Group 2 must be different.")
+
+                if st.button("Run Independent t-test", type="primary"):
+                    try:
+                        if group1 == group2:
+                            st.error("Please select two different groups.")
+                        else:
+                            result = run_independent_ttest(
+                                selected_df,
+                                numeric_column,
+                                group_column,
+                                group1,
+                                group2,
+                                alpha
+                            )
+
+                            result_table = create_ttest_result_table(result)
+                            interpretation = get_ttest_interpretation(result)
+
+                            plot_col, interpretation_col = st.columns([1.2, 1])
+
+                            with plot_col:
+                                st.write("#### Visualization")
+                                fig = plot_independent_ttest(
+                                    selected_df,
+                                    numeric_column,
+                                    group_column,
+                                    group1,
+                                    group2
+                                )
+                                st.pyplot(fig)
+
+                            with interpretation_col:
+                                with st.container(border=True):
+                                    st.write("#### Interpretation")
+                                    for line in interpretation:
+                                        st.write(f"- {line}")
+
+                            st.write("#### Result Table")
+                            st.dataframe(result_table, use_container_width=True)
+
+                    except Exception as error:
+                        st.error(error)
+
+        # ----------------------------------------------------
+        # Paired t-test
+        # ----------------------------------------------------
+        with tab3:
+            st.write("### Paired t-test")
+
+            st.write(
+                "Use this when the two numerical columns are related, such as before-after measurements from the same subjects."
+            )
+
+            before_column = st.selectbox(
+                "Choose before / first measurement column",
+                numerical_columns,
+                key="paired_before"
+            )
+
+            after_column = st.selectbox(
+                "Choose after / second measurement column",
+                numerical_columns,
+                key="paired_after"
+            )
+
+            if before_column == after_column:
+                st.warning("Before and after columns should be different.")
+
+            if st.button("Run Paired t-test", type="primary"):
+                try:
+                    if before_column == after_column:
+                        st.error("Please select two different columns.")
+                    else:
+                        result = run_paired_ttest(
+                            selected_df,
+                            before_column,
+                            after_column,
+                            alpha
+                        )
+
+                        result_table = create_ttest_result_table(result)
+                        interpretation = get_ttest_interpretation(result)
+
+                        plot_col, interpretation_col = st.columns([1.2, 1])
+
+                        with plot_col:
+                            st.write("#### Visualization")
+                            fig = plot_paired_ttest(
+                                selected_df,
+                                before_column,
+                                after_column
+                            )
+                            st.pyplot(fig)
+
+                        with interpretation_col:
+                            with st.container(border=True):
+                                st.write("#### Interpretation")
+                                for line in interpretation:
+                                    st.write(f"- {line}")
+
+                        st.write("#### Result Table")
+                        st.dataframe(result_table, use_container_width=True)
+
+                except Exception as error:
+                    st.error(error)
+
+        st.divider()
+
+        col_back, col_next = st.columns([1, 2])
+
+        with col_back:
+            if st.button("Back to Normality Tests"):
+                st.session_state.step = "normality_tests"
+                st.rerun()
+
+
+
+        with col_next:
+            if st.button("Continue to ANOVA", type="primary"):
+                st.session_state.step = "anova"
+                st.rerun()
+
+
+
+
+# ------------------------------------------------------------
+# STEP 8: ANOVA
+# ------------------------------------------------------------
+
+if st.session_state.step == "anova":
+
+    selected_df = st.session_state.selected_df
+
+    st.subheader("Step 8: ANOVA Tests")
+
+    st.info(
+        "ANOVA is used to compare means across groups. This section includes one-way ANOVA and two-way ANOVA with interaction."
+    )
+
+    numerical_columns = get_numerical_columns(selected_df)
+
+    categorical_columns = [
+        col for col in selected_df.columns
+        if selected_df[col].nunique(dropna=True) >= 2
+        and selected_df[col].nunique(dropna=True) <= 20
+    ]
+
+    if len(numerical_columns) == 0:
+        st.warning("No numerical columns found in the selected dataset.")
+
+        if st.button("Back to T-Tests"):
+            st.session_state.step = "t_tests"
+            st.rerun()
+
+    elif len(categorical_columns) == 0:
+        st.warning("No suitable categorical columns found. ANOVA needs grouping/factor columns.")
+
+        if st.button("Back to T-Tests"):
+            st.session_state.step = "t_tests"
+            st.rerun()
+
+    else:
+        alpha = st.selectbox(
+            "Choose significance level (alpha)",
+            [0.01, 0.05, 0.10],
+            index=1,
+            key="anova_alpha"
+        )
+
+        tab1, tab2 = st.tabs(["One-way ANOVA", "Two-way ANOVA"])
+
+        # ----------------------------------------------------
+        # One-way ANOVA
+        # ----------------------------------------------------
+        with tab1:
+            st.write("### One-way ANOVA")
+
+            st.write(
+                "Use one-way ANOVA when you want to compare the mean of one numerical variable across 3 or more groups. "
+                "It can also run with 2 groups, but t-test is usually simpler for exactly 2 groups."
+            )
+
+            numeric_column = st.selectbox(
+                "Choose numerical outcome column",
+                numerical_columns,
+                key="one_way_numeric"
+            )
+
+            possible_factor_columns = [
+                col for col in categorical_columns
+                if col != numeric_column
+            ]
+
+            factor_column = st.selectbox(
+                "Choose factor/group column",
+                possible_factor_columns,
+                key="one_way_factor"
+            )
+
+            group_count = selected_df[factor_column].nunique(dropna=True)
+
+            st.caption(f"Detected number of groups in `{factor_column}`: {group_count}")
+
+            if group_count < 2:
+                st.warning("The selected factor must have at least 2 groups.")
+
+            if st.button("Run One-way ANOVA", type="primary"):
+                try:
+                    result = run_one_way_anova(
+                        selected_df,
+                        numeric_column,
+                        factor_column,
+                        alpha
+                    )
+
+                    interpretation = get_one_way_anova_interpretation(result)
+
+                    plot_col, interpretation_col = st.columns([1.2, 1])
+
+                    with plot_col:
+                        st.write("#### Group Comparison Plot")
+                        fig = plot_one_way_anova(
+                            selected_df,
+                            numeric_column,
+                            factor_column
+                        )
+                        st.pyplot(fig)
+
+                    with interpretation_col:
+                        with st.container(border=True):
+                            st.write("#### Interpretation")
+                            for line in interpretation:
+                                st.write(f"- {line}")
+
+                    st.write("#### ANOVA Table")
+                    st.dataframe(result["ANOVA Table"], use_container_width=True)
+
+                    st.write("#### Group Summary")
+                    st.dataframe(result["Group Summary"], use_container_width=True)
+
+                    if result["Decision"] == "Reject H0":
+                        st.write("#### Tukey HSD Post-hoc Test")
+                        st.caption(
+                            "Because ANOVA is significant, Tukey HSD helps identify which specific group pairs are different."
+                        )
+
+                        tukey_df = run_tukey_hsd(
+                            selected_df,
+                            numeric_column,
+                            factor_column,
+                            alpha
+                        )
+
+                        st.dataframe(tukey_df, use_container_width=True)
+
+                except Exception as error:
+                    st.error(error)
+
+        # ----------------------------------------------------
+        # Two-way ANOVA
+        # ----------------------------------------------------
+        with tab2:
+            st.write("### Two-way ANOVA")
+
+            st.write(
+                "Use two-way ANOVA when you want to study the effect of two categorical factors on one numerical variable. "
+                "This also checks whether the two factors interact with each other."
+            )
+
+            numeric_column = st.selectbox(
+                "Choose numerical outcome column",
+                numerical_columns,
+                key="two_way_numeric"
+            )
+
+            possible_factor_columns = [
+                col for col in categorical_columns
+                if col != numeric_column
+            ]
+
+            factor1 = st.selectbox(
+                "Choose Factor 1",
+                possible_factor_columns,
+                key="two_way_factor_1"
+            )
+
+            factor2_options = [
+                col for col in possible_factor_columns
+                if col != factor1
+            ]
+
+            if len(factor2_options) == 0:
+                st.warning("Two-way ANOVA needs two different factor columns.")
+
+            else:
+                factor2 = st.selectbox(
+                    "Choose Factor 2",
+                    factor2_options,
+                    key="two_way_factor_2"
+                )
+
+                st.caption(
+                    f"Detected groups: `{factor1}` = {selected_df[factor1].nunique(dropna=True)}, "
+                    f"`{factor2}` = {selected_df[factor2].nunique(dropna=True)}"
+                )
+
+                if st.button("Run Two-way ANOVA", type="primary"):
+                    try:
+                        result = run_two_way_anova(
+                            selected_df,
+                            numeric_column,
+                            factor1,
+                            factor2,
+                            alpha
+                        )
+
+                        interpretation = get_two_way_anova_interpretation(result)
+
+                        plot_col, interpretation_col = st.columns([1.2, 1])
+
+                        with plot_col:
+                            st.write("#### Interaction Plot")
+                            fig = plot_two_way_interaction(
+                                selected_df,
+                                numeric_column,
+                                factor1,
+                                factor2
+                            )
+                            st.pyplot(fig)
+
+                        with interpretation_col:
+                            with st.container(border=True):
+                                st.write("#### Interpretation")
+                                for line in interpretation:
+                                    st.write(f"- {line}")
+
+                        st.write("#### ANOVA Table")
+                        st.dataframe(result["ANOVA Table"], use_container_width=True)
+
+                        st.write("#### Effects Summary")
+                        st.dataframe(result["Effects Table"], use_container_width=True)
+
+                        st.write("#### Group Combination Summary")
+                        st.dataframe(result["Group Summary"], use_container_width=True)
+
+                    except Exception as error:
+                        st.error(error)
+
+        st.divider()
+
+        col_back, col_next = st.columns([1, 2])
+
+        with col_back:
+            if st.button("Back to T-Tests"):
+                st.session_state.step = "t_tests"
+                st.rerun()
+
+        with col_next:
+            st.button("Continue to Chi-Square Coming Next", type="primary")
