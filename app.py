@@ -102,6 +102,15 @@ from utils.clt_simulation import (
     create_sample_means_normality_table,
     get_clt_interpretation
 )
+
+from utils.ui_components import (
+    inject_global_css,
+    render_sidebar,
+    render_top_bar,
+    metric_card,
+    info_card,
+    page_locked_message
+)
 # ------------------------------------------------------------
 # Page configuration
 # ------------------------------------------------------------
@@ -117,61 +126,7 @@ st.set_page_config(
 # Small CSS styling
 # ------------------------------------------------------------
 
-st.markdown(
-    """
-    <style>
-    .main-title {
-        font-size: 42px;
-        font-weight: 800;
-        margin-bottom: 0px;
-        color: inherit;
-    }
-
-    .subtitle {
-        font-size: 18px;
-        color: #9ca3af;
-        margin-bottom: 30px;
-    }
-
-    .metric-card {
-        padding: 18px;
-        border-radius: 14px;
-        border: 1px solid #d1d5db;
-        background-color: #f9fafb;
-        text-align: center;
-        min-height: 95px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-
-    .metric-number {
-        font-size: 30px;
-        font-weight: 800;
-        color: #111827 !important;
-        line-height: 1.2;
-    }
-
-    .metric-label {
-        font-size: 14px;
-        color: #4b5563 !important;
-        margin-top: 6px;
-    }
-
-    .column-card-title {
-        font-size: 17px;
-        font-weight: 700;
-        margin-bottom: 5px;
-    }
-
-    .small-muted {
-        color: #9ca3af;
-        font-size: 13px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+inject_global_css()
 
 # ------------------------------------------------------------
 # Session state initialization
@@ -209,14 +164,34 @@ def reset_project():
 # Header
 # ------------------------------------------------------------
 
-st.markdown('<div class="main-title">📊 Data Methods Lab</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="subtitle">Upload a dataset, select useful columns, and prepare it for statistical analysis.</div>',
-    unsafe_allow_html=True
-)
+# st.markdown('<div class="main-title">📊 Data Methods Lab</div>', unsafe_allow_html=True)
+# st.markdown(
+#     '<div class="subtitle">Upload a dataset, select useful columns, and prepare it for statistical analysis.</div>',
+#     unsafe_allow_html=True
+# )
 
-st.divider()
+# st.divider()
 
+current_page = render_sidebar()
+render_top_bar(current_page)
+
+
+PAGE_TO_STEP = {
+    "Import dataset": "upload",
+    "Column selection": "select_columns",
+    "Dataset overview": "selected_preview",
+    "Descriptive statistics": "descriptive_stats",
+    "Visualizations": "visualizations",
+    "Normality tests": "normality_tests",
+    "T-tests": "t_tests",
+    "ANOVA": "anova",
+    "Chi-square tests": "chi_square",
+    "Z-tests": "z_tests",
+    "Distribution fitting": "distribution_fitting",
+    "Central limit theorem": "clt_simulation",
+}
+
+st.session_state.step = PAGE_TO_STEP.get(current_page, "upload")
 
 # ------------------------------------------------------------
 # STEP 1: Upload dataset
@@ -306,6 +281,12 @@ if st.session_state.step == "upload":
 # ------------------------------------------------------------
 
 elif st.session_state.step == "select_columns":
+
+
+    if st.session_state.df is None:
+        st.warning("Please upload a dataset first.")
+        st.stop()
+
 
     df = st.session_state.df
     column_summary = st.session_state.column_summary
@@ -485,6 +466,11 @@ elif st.session_state.step == "selected_preview":
 # ------------------------------------------------------------
 
 elif st.session_state.step == "descriptive_stats":
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
+
     selected_df = st.session_state.selected_df
 
     st.subheader("Step 4: Descriptive Statistics")
@@ -552,6 +538,12 @@ elif st.session_state.step == "descriptive_stats":
 # ------------------------------------------------------------
 
 if st.session_state.step == "visualizations":
+
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
+
 
     selected_df = st.session_state.selected_df
 
@@ -704,6 +696,11 @@ if st.session_state.step == "visualizations":
 
 if st.session_state.step == "normality_tests":
 
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
+
+
     selected_df = st.session_state.selected_df
 
     st.subheader("Step 6: Normality Tests")
@@ -817,6 +814,11 @@ if st.session_state.step == "normality_tests":
 # ------------------------------------------------------------
 
 if st.session_state.step == "t_tests":
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
+
 
     selected_df = st.session_state.selected_df
 
@@ -1089,6 +1091,11 @@ if st.session_state.step == "t_tests":
 
 if st.session_state.step == "anova":
 
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
+
     selected_df = st.session_state.selected_df
 
     st.subheader("Step 8: ANOVA Tests")
@@ -1330,6 +1337,12 @@ if st.session_state.step == "anova":
 
 if st.session_state.step == "chi_square":
 
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
+
+
     selected_df = st.session_state.selected_df
 
     st.subheader("Step 9: Chi-Square Tests")
@@ -1566,6 +1579,10 @@ if st.session_state.step == "chi_square":
 # ------------------------------------------------------------
 
 if st.session_state.step == "z_tests":
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
 
     selected_df = st.session_state.selected_df
 
@@ -1970,6 +1987,11 @@ if st.session_state.step == "z_tests":
 
 if st.session_state.step == "distribution_fitting":
 
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
+
     selected_df = st.session_state.selected_df
 
     st.subheader("Step 11: Distribution Fitting")
@@ -2127,6 +2149,11 @@ if st.session_state.step == "distribution_fitting":
 # ------------------------------------------------------------
 
 if st.session_state.step == "clt_simulation":
+
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
 
     selected_df = st.session_state.selected_df
 
