@@ -150,6 +150,9 @@ if "selected_columns" not in st.session_state:
 if "uploaded_file_name" not in st.session_state:
     st.session_state.uploaded_file_name = None
 
+if "uploaded_file_signature" not in st.session_state:
+    st.session_state.uploaded_file_signature = None
+
 
 def reset_project():
     st.session_state.step = "upload"
@@ -158,6 +161,35 @@ def reset_project():
     st.session_state.column_summary = None
     st.session_state.selected_columns = []
     st.session_state.uploaded_file_name = None
+
+
+def clear_analysis_state_for_new_upload():
+    """
+    Clears selected dataset and analysis outputs when a new dataset is uploaded.
+    This prevents old selected columns/results from staying after changing files.
+    """
+
+    keys_to_clear = [
+        "selected_df",
+        "selected_columns",
+        "column_summary",
+
+        "dist_fit_results",
+        "dist_fit_data",
+        "dist_fit_column_name",
+        "dist_fit_bins_used",
+
+        "clt_data",
+        "clt_sample_means",
+        "clt_column_name",
+        "clt_sample_size_used",
+        "clt_number_of_samples_used",
+        "clt_bins_used",
+    ]
+
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 # ------------------------------------------------------------
@@ -199,7 +231,7 @@ st.session_state.step = PAGE_TO_STEP.get(current_page, "upload")
 
 if st.session_state.step == "upload":
 
-    st.subheader("Step 1: Upload Dataset")
+    st.subheader("Import Dataset")
 
     uploaded_file = st.file_uploader(
         "Upload your dataset",
@@ -209,6 +241,12 @@ if st.session_state.step == "upload":
 
     if uploaded_file is not None:
         try:
+            uploaded_file_signature = f"{uploaded_file.name}_{uploaded_file.size}"
+
+            if st.session_state.uploaded_file_signature != uploaded_file_signature:
+                clear_analysis_state_for_new_upload()
+                st.session_state.uploaded_file_signature = uploaded_file_signature
+
             df = load_dataset(uploaded_file)
 
             st.session_state.df = df
@@ -268,8 +306,8 @@ if st.session_state.step == "upload":
             st.write("### Dataset Preview")
             st.dataframe(df.head(10), use_container_width=True)
 
-            if st.button("OK, Show Columns", type="primary"):
-                st.session_state.step = "select_columns"
+            if st.button("Continue to Column Selection", type="primary"):
+                st.session_state.current_page = "Column selection"
                 st.rerun()
 
         except Exception as error:
@@ -291,7 +329,7 @@ elif st.session_state.step == "select_columns":
     df = st.session_state.df
     column_summary = st.session_state.column_summary
 
-    st.subheader("Step 2: Select Columns for Analysis")
+    st.subheader("Column Selection")
 
     st.info(
         "Uncheck columns that are not useful for analysis, such as ID numbers, names, card numbers, emails, or other identifier columns."
@@ -365,7 +403,7 @@ elif st.session_state.step == "select_columns":
         else:
             st.session_state.selected_columns = final_selected_columns
             st.session_state.selected_df = get_selected_dataframe(df, final_selected_columns)
-            st.session_state.step = "selected_preview"
+            st.session_state.current_page = "Dataset overview"
             st.rerun()
 
     st.button("Back to Upload", on_click=reset_project)
@@ -375,70 +413,164 @@ elif st.session_state.step == "select_columns":
 # STEP 3: Show selected data nicely
 # ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# DATASET OVERVIEW
+# ------------------------------------------------------------
+
 elif st.session_state.step == "selected_preview":
+
+    if st.session_state.selected_df is None:
+        page_locked_message()
+        st.stop()
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 3: Selected Dataset Overview")
+    st.subheader("Dataset Overview")
 
-    st.success("These are the columns that will be used for future analysis.")
+    st.info(
+        "This page summarizes the selected dataset that will be used across all analysis modules."
+    )
 
     numerical_columns = get_numerical_columns(selected_df)
     categorical_columns = get_categorical_columns(selected_df)
 
+    total_missing = int(selected_df.isna().sum().sum())
+    duplicate_rows = int(selected_df.duplicated().sum())
+
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-number">{selected_df.shape[0]}</div>
-                <div class="metric-label">Rows</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        metric_card(
+            "Rows",
+            f"{selected_df.shape[0]:,}",
+            "records available"
         )
 
     with col2:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-number">{selected_df.shape[1]}</div>
-                <div class="metric-label">Selected Columns</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        metric_card(
+            "Selected columns",
+            selected_df.shape[1],
+            "columns used for analysis"
         )
 
     with col3:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-number">{len(numerical_columns)}</div>
-                <div class="metric-label">Numerical Columns</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        metric_card(
+            "Numerical columns",
+            len(numerical_columns),
+            "usable for mean-based tests"
         )
 
     with col4:
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-number">{len(categorical_columns)}</div>
-                <div class="metric-label">Categorical Columns</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        metric_card(
+            "Categorical columns",
+            len(categorical_columns),
+            "usable for grouping/tests"
         )
 
     st.write("### Selected Columns")
-    st.write(st.session_state.selected_columns)
+
+    selected_column_cards = ""
+
+    for column in selected_df.columns:
+        dtype_text = str(selected_df[column].dtype)
+        missing_count = int(selected_df[column].isna().sum())
+        unique_count = int(selected_df[column].nunique(dropna=True))
+
+        if column in numerical_columns:
+            badge = "Numerical"
+            badge_color = "#00B894"
+        elif column in categorical_columns:
+            badge = "Categorical"
+            badge_color = "#A78BFA"
+        else:
+            badge = "Other"
+            badge_color = "#F59E0B"
+
+        selected_column_cards += f"""
+        <div style="
+            border: 1px solid #3A3B40;
+            background: #242529;
+            border-radius: 14px;
+            padding: 16px;
+            min-height: 125px;
+        ">
+            <div style="font-weight:800; font-size:16px; color:#F5F5F5; margin-bottom:8px;">
+                {column}
+            </div>
+            <div style="
+                display:inline-block;
+                padding:4px 9px;
+                border-radius:999px;
+                background:{badge_color}22;
+                color:{badge_color};
+                font-size:12px;
+                font-weight:800;
+                margin-bottom:8px;
+            ">
+                {badge}
+            </div>
+            <div style="font-size:13px; color:#A3A3A3; margin-top:8px;">
+                Type: <b>{dtype_text}</b>
+            </div>
+            <div style="font-size:13px; color:#A3A3A3;">
+                Unique values: <b>{unique_count}</b>
+            </div>
+            <div style="font-size:13px; color:#A3A3A3;">
+                Missing values: <b>{missing_count}</b>
+            </div>
+        </div>
+        """
+
+    st.markdown(
+        f"""
+        <div style="
+            display:grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-top: 12px;
+            margin-bottom: 28px;
+        ">
+            {selected_column_cards}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.write("### Dataset Quality")
+
+    q1, q2, q3 = st.columns(3)
+
+    with q1:
+        metric_card(
+            "Missing values",
+            total_missing,
+            "total missing cells"
+        )
+
+    with q2:
+        metric_card(
+            "Duplicate rows",
+            duplicate_rows,
+            "fully duplicated records"
+        )
+
+    with q3:
+        missing_percentage = round(
+            (total_missing / (selected_df.shape[0] * selected_df.shape[1])) * 100,
+            2
+        ) if selected_df.shape[0] > 0 and selected_df.shape[1] > 0 else 0
+
+        metric_card(
+            "Missing %",
+            f"{missing_percentage}%",
+            "overall dataset missingness"
+        )
 
     st.write("### Selected Dataset Preview")
     st.dataframe(selected_df.head(20), use_container_width=True)
 
     st.write("### Column Data Types")
+
     dtype_df = pd.DataFrame({
         "Column": selected_df.columns,
         "Data Type": selected_df.dtypes.astype(str).values,
@@ -448,17 +580,9 @@ elif st.session_state.step == "selected_preview":
 
     st.dataframe(dtype_df, use_container_width=True)
 
-    col_back, col_continue = st.columns([1, 2])
-
-    with col_back:
-        if st.button("Back to Column Selection"):
-            st.session_state.step = "select_columns"
-            st.rerun()
-
-    with col_continue:  # ← THIS LINE was de-indented in the original, causing the bug
-        if st.button("Continue to Descriptive Statistics", type="primary"):
-            st.session_state.step = "descriptive_stats"
-            st.rerun()
+    st.caption(
+        "Use the sidebar to move directly to descriptive statistics, visualizations, tests, diagnostics, or distribution fitting."
+    )
 
 
 # ------------------------------------------------------------
@@ -473,7 +597,7 @@ elif st.session_state.step == "descriptive_stats":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 4: Descriptive Statistics")
+    st.subheader("Descriptive Statistics")
 
     st.info(
         "Select a numerical column to calculate mean, median, mode, variance, standard deviation, skewness, and kurtosis."
@@ -547,7 +671,7 @@ if st.session_state.step == "visualizations":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 5: Data Visualizations")
+    st.subheader("Data Visualizations")
 
     st.info(
         "Select a numerical column to view histogram, boxplot, estimated PDF/KDE, CDF, Q-Q plot, and PMF if suitable."
@@ -598,28 +722,28 @@ if st.session_state.step == "visualizations":
             if plot_option == "Histogram":
                 bins = st.slider("Number of bins", min_value=5, max_value=60, value=20)
                 fig = plot_histogram(selected_df, selected_column, bins=bins)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
 
             elif plot_option == "Boxplot":
                 fig = plot_boxplot(selected_df, selected_column)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
 
             elif plot_option == "Estimated PDF / KDE":
                 fig = plot_kde_pdf(selected_df, selected_column)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
 
             elif plot_option == "CDF":
                 fig = plot_cdf(selected_df, selected_column)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
 
             elif plot_option == "Q-Q Plot":
                 fig = plot_qq(selected_df, selected_column)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
 
             elif plot_option == "PMF":
                 if is_discrete_numeric(clean_data):
                     fig = plot_pmf(selected_df, selected_column)
-                    st.pyplot(fig)
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning(
                         "This column does not look discrete. PMF is mainly suitable for discrete numerical variables."
@@ -703,7 +827,7 @@ if st.session_state.step == "normality_tests":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 6: Normality Tests")
+    st.subheader("Normality Tests")
 
     st.info(
         "Select a numerical column and run Shapiro-Wilk, Kolmogorov-Smirnov, and Anderson-Darling tests."
@@ -781,12 +905,12 @@ if st.session_state.step == "normality_tests":
         with plot_col1:
             st.write("#### Histogram")
             fig_hist = plot_histogram(selected_df, selected_column, bins=20)
-            st.pyplot(fig_hist)
+            st.plotly_chart(fig_hist, use_container_width=True)
 
         with plot_col2:
             st.write("#### Q-Q Plot")
             fig_qq = plot_qq(selected_df, selected_column)
-            st.pyplot(fig_qq)
+            st.plotly_chart(fig_qq, use_container_width=True)
 
         st.caption(
             "Statistical tests are useful, but plots are also important. "
@@ -822,7 +946,7 @@ if st.session_state.step == "t_tests":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 7: T-Tests")
+    st.subheader("T-Tests")
 
     st.info(
         "Use t-tests to compare means. This section includes one-sample, independent two-sample, and paired t-tests."
@@ -899,7 +1023,7 @@ if st.session_state.step == "t_tests":
                             numeric_column,
                             hypothesized_mean
                         )
-                        st.pyplot(fig)
+                        st.plotly_chart(fig, use_container_width=True)
 
                     with interpretation_col:
                         with st.container(border=True):
@@ -989,7 +1113,7 @@ if st.session_state.step == "t_tests":
                                     group1,
                                     group2
                                 )
-                                st.pyplot(fig)
+                                st.plotly_chart(fig, use_container_width=True)
 
                             with interpretation_col:
                                 with st.container(border=True):
@@ -1052,7 +1176,7 @@ if st.session_state.step == "t_tests":
                                 before_column,
                                 after_column
                             )
-                            st.pyplot(fig)
+                            st.plotly_chart(fig, use_container_width=True)
 
                         with interpretation_col:
                             with st.container(border=True):
@@ -1098,7 +1222,7 @@ if st.session_state.step == "anova":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 8: ANOVA Tests")
+    st.subheader("ANOVA Tests")
 
     st.info(
         "ANOVA is used to compare means across groups. This section includes one-way ANOVA and two-way ANOVA with interaction."
@@ -1191,7 +1315,7 @@ if st.session_state.step == "anova":
                             numeric_column,
                             factor_column
                         )
-                        st.pyplot(fig)
+                        st.plotly_chart(fig, use_container_width=True)
 
                     with interpretation_col:
                         with st.container(border=True):
@@ -1293,7 +1417,7 @@ if st.session_state.step == "anova":
                                 factor1,
                                 factor2
                             )
-                            st.pyplot(fig)
+                            st.plotly_chart(fig, use_container_width=True)
 
                         with interpretation_col:
                             with st.container(border=True):
@@ -1345,7 +1469,7 @@ if st.session_state.step == "chi_square":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 9: Chi-Square Tests")
+    st.subheader("Chi-Square Tests")
 
     st.info(
         "Chi-square tests are used for categorical data. "
@@ -1432,7 +1556,7 @@ if st.session_state.step == "chi_square":
                                 column1,
                                 column2
                             )
-                            st.pyplot(fig)
+                            st.plotly_chart(fig, use_container_width=True)
 
                         with interpretation_col:
                             with st.container(border=True):
@@ -1540,7 +1664,7 @@ if st.session_state.step == "chi_square":
                     with plot_col:
                         st.write("#### Observed vs Expected Plot")
                         fig = plot_goodness_of_fit(result)
-                        st.pyplot(fig)
+                        st.plotly_chart(fig, use_container_width=True)
 
                     with interpretation_col:
                         with st.container(border=True):
@@ -1586,7 +1710,7 @@ if st.session_state.step == "z_tests":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 10: Z-Tests")
+    st.subheader("Z-Tests")
 
     st.info(
         "Z-tests are used for mean or proportion testing when the normal approximation is appropriate. "
@@ -1676,7 +1800,7 @@ if st.session_state.step == "z_tests":
                             numeric_column,
                             hypothesized_mean
                         )
-                        st.pyplot(fig)
+                        st.plotly_chart(fig, use_container_width=True)
 
                     with interpretation_col:
                         with st.container(border=True):
@@ -1791,7 +1915,7 @@ if st.session_state.step == "z_tests":
                                     group1,
                                     group2
                                 )
-                                st.pyplot(fig)
+                                st.plotly_chart(fig, use_container_width=True)
 
                             with interpretation_col:
                                 with st.container(border=True):
@@ -1859,7 +1983,7 @@ if st.session_state.step == "z_tests":
                     with plot_col:
                         st.write("#### Visualization")
                         fig = plot_one_proportion_ztest(result)
-                        st.pyplot(fig)
+                        st.plotly_chart(fig, use_container_width=True)
 
                     with interpretation_col:
                         with st.container(border=True):
@@ -1952,7 +2076,7 @@ if st.session_state.step == "z_tests":
                         with plot_col:
                             st.write("#### Visualization")
                             fig = plot_two_proportion_ztest(result)
-                            st.pyplot(fig)
+                            st.plotly_chart(fig, use_container_width=True)
 
                         with interpretation_col:
                             with st.container(border=True):
@@ -1994,7 +2118,7 @@ if st.session_state.step == "distribution_fitting":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 11: Distribution Fitting")
+    st.subheader("Distribution Fitting")
 
     st.info(
         "This section fits Normal, Exponential, and Uniform distributions using least-squares error. "
@@ -2057,7 +2181,7 @@ if st.session_state.step == "distribution_fitting":
             with plot_col:
                 st.write("#### Histogram with Fitted PDFs")
                 fig = plot_distribution_fits(data, results, bins=bins_used)
-                st.pyplot(fig)
+                st.plotly_chart(fig, use_container_width=True)
 
             with interpretation_col:
                 with st.container(border=True):
@@ -2157,7 +2281,7 @@ if st.session_state.step == "clt_simulation":
 
     selected_df = st.session_state.selected_df
 
-    st.subheader("Step 12: Central Limit Theorem Simulation")
+    st.subheader("Central Limit Theorem Simulation")
 
     st.info(
         "The Central Limit Theorem says that the sampling distribution of the sample mean becomes approximately normal "

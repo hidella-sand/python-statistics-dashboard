@@ -1,7 +1,85 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import stats
+
+import plotly.graph_objects as go
+
+
+PLOT_COLORS = {
+    "primary": "#7C5CFF",
+    "secondary": "#A78BFA",
+    "blue": "#60A5FA",
+    "green": "#00B894",
+    "warning": "#F59E0B",
+    "error": "#EF4444",
+    "bg": "#181A1F",
+    "card": "#242529",
+    "grid": "#3A3B40",
+    "text": "#F5F5F5",
+    "muted": "#A3A3A3",
+}
+
+
+def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
+    """
+    Applies a modern dark dashboard style to Plotly figures.
+    """
+
+    fig.update_layout(
+        title={
+            "text": title if title else "",
+            "x": 0.02,
+            "xanchor": "left",
+            "font": {
+                "size": 18,
+                "color": PLOT_COLORS["text"],
+            },
+        },
+        paper_bgcolor=PLOT_COLORS["bg"],
+        plot_bgcolor=PLOT_COLORS["card"],
+        font={
+            "color": PLOT_COLORS["text"],
+            "family": "Arial",
+        },
+        height=height,
+        margin={
+            "l": 45,
+            "r": 25,
+            "t": 60,
+            "b": 45,
+        },
+        hovermode="closest",
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1,
+            "font": {
+                "color": PLOT_COLORS["muted"],
+            },
+        },
+    )
+
+    fig.update_xaxes(
+        title_text=x_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    fig.update_yaxes(
+        title_text=y_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    return fig
 
 
 def prepare_numeric_data(df, column):
@@ -40,80 +118,178 @@ def is_discrete_numeric(clean_data):
 
 def plot_histogram(df, column, bins=20):
     """
-    Creates a histogram for a numerical column.
+    Creates an interactive histogram for a numerical column.
     """
 
     clean_data = prepare_numeric_data(df, column)
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.hist(clean_data, bins=bins, edgecolor="black", alpha=0.75)
+    fig.add_trace(
+        go.Histogram(
+            x=clean_data,
+            nbinsx=bins,
+            marker={
+                "color": PLOT_COLORS["secondary"],
+                "line": {
+                    "color": PLOT_COLORS["bg"],
+                    "width": 1,
+                },
+            },
+            opacity=0.85,
+            name="Frequency",
+            hovertemplate=f"{column}: %{{x}}<br>Count: %{{y}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"Histogram of {column}", fontsize=14)
-    ax.set_xlabel(column)
-    ax.set_ylabel("Frequency")
-    ax.grid(True, alpha=0.3)
+    mean_value = clean_data.mean()
+    median_value = clean_data.median()
+
+    fig.add_vline(
+        x=mean_value,
+        line_width=2,
+        line_dash="dash",
+        line_color=PLOT_COLORS["green"],
+        annotation_text="Mean",
+        annotation_position="top left",
+    )
+
+    fig.add_vline(
+        x=median_value,
+        line_width=2,
+        line_dash="dot",
+        line_color=PLOT_COLORS["warning"],
+        annotation_text="Median",
+        annotation_position="top right",
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Histogram of {column}",
+        x_title=column,
+        y_title="Frequency",
+        height=420,
+    )
 
     return fig
 
 
 def plot_boxplot(df, column):
     """
-    Creates a boxplot for a numerical column.
+    Creates an interactive boxplot for a numerical column.
     """
 
     clean_data = prepare_numeric_data(df, column)
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.5))
+    fig = go.Figure()
 
-    ax.boxplot(clean_data, vert=False)
+    fig.add_trace(
+        go.Box(
+            x=clean_data,
+            name=column,
+            boxmean=True,
+            marker_color=PLOT_COLORS["primary"],
+            line_color=PLOT_COLORS["secondary"],
+            fillcolor="rgba(167, 139, 250, 0.35)",
+            hovertemplate=f"{column}: %{{x}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"Boxplot of {column}", fontsize=14)
-    ax.set_xlabel(column)
-    ax.grid(True, alpha=0.3)
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Boxplot of {column}",
+        x_title=column,
+        y_title="",
+        height=360,
+    )
 
     return fig
 
 
 def plot_kde_pdf(df, column):
     """
-    Creates a KDE curve, which estimates the PDF for continuous data.
+    Creates an interactive KDE curve, which estimates the PDF for continuous data.
     """
 
     clean_data = prepare_numeric_data(df, column)
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
     if clean_data.nunique() < 2:
-        ax.text(
-            0.5,
-            0.5,
-            "KDE/PDF cannot be plotted because all values are the same.",
-            ha="center",
-            va="center"
+        fig.add_annotation(
+            text="KDE/PDF cannot be plotted because all values are the same.",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font={
+                "size": 15,
+                "color": PLOT_COLORS["muted"],
+            },
         )
-        ax.set_axis_off()
+
+        fig = apply_plotly_theme(
+            fig,
+            title=f"Estimated PDF / KDE of {column}",
+            x_title=column,
+            y_title="Density",
+            height=400,
+        )
+
         return fig
 
     kde = stats.gaussian_kde(clean_data)
 
-    x_values = np.linspace(clean_data.min(), clean_data.max(), 300)
+    x_values = np.linspace(clean_data.min(), clean_data.max(), 400)
     y_values = kde(x_values)
 
-    ax.plot(x_values, y_values, linewidth=2)
-    ax.fill_between(x_values, y_values, alpha=0.2)
+    fig.add_trace(
+        go.Scatter(
+            x=x_values,
+            y=y_values,
+            mode="lines",
+            line={
+                "color": PLOT_COLORS["primary"],
+                "width": 3,
+            },
+            fill="tozeroy",
+            fillcolor="rgba(124, 92, 255, 0.22)",
+            name="Estimated PDF / KDE",
+            hovertemplate=f"{column}: %{{x:.4f}}<br>Density: %{{y:.6f}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"Estimated PDF / KDE of {column}", fontsize=14)
-    ax.set_xlabel(column)
-    ax.set_ylabel("Density")
-    ax.grid(True, alpha=0.3)
+    peak_index = np.argmax(y_values)
+    peak_x = x_values[peak_index]
+    peak_y = y_values[peak_index]
+
+    fig.add_trace(
+        go.Scatter(
+            x=[peak_x],
+            y=[peak_y],
+            mode="markers",
+            marker={
+                "size": 9,
+                "color": PLOT_COLORS["green"],
+            },
+            name="Peak density",
+            hovertemplate=f"Peak around: %{{x:.4f}}<br>Density: %{{y:.6f}}<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Estimated PDF / KDE of {column}",
+        x_title=column,
+        y_title="Density",
+        height=420,
+    )
 
     return fig
 
 
 def plot_cdf(df, column):
     """
-    Creates an empirical CDF plot.
+    Creates an interactive empirical CDF plot.
     """
 
     clean_data = prepare_numeric_data(df, column)
@@ -121,56 +297,161 @@ def plot_cdf(df, column):
     sorted_data = np.sort(clean_data)
     cdf_values = np.arange(1, len(sorted_data) + 1) / len(sorted_data)
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.plot(sorted_data, cdf_values, marker=".", linestyle="none")
+    fig.add_trace(
+        go.Scatter(
+            x=sorted_data,
+            y=cdf_values,
+            mode="lines+markers",
+            line={
+                "color": PLOT_COLORS["primary"],
+                "width": 3,
+            },
+            marker={
+                "size": 5,
+                "color": PLOT_COLORS["secondary"],
+            },
+            name="Empirical CDF",
+            hovertemplate=f"{column}: %{{x:.4f}}<br>CDF: %{{y:.4f}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"Empirical CDF of {column}", fontsize=14)
-    ax.set_xlabel(column)
-    ax.set_ylabel("Cumulative Probability")
-    ax.grid(True, alpha=0.3)
+    q25 = clean_data.quantile(0.25)
+    q50 = clean_data.quantile(0.50)
+    q75 = clean_data.quantile(0.75)
+
+    for q_value, label, color in [
+        (q25, "25%", PLOT_COLORS["blue"]),
+        (q50, "50% / Median", PLOT_COLORS["green"]),
+        (q75, "75%", PLOT_COLORS["warning"]),
+    ]:
+        fig.add_vline(
+            x=q_value,
+            line_width=2,
+            line_dash="dash",
+            line_color=color,
+            annotation_text=label,
+            annotation_position="top",
+        )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Empirical CDF of {column}",
+        x_title=column,
+        y_title="Cumulative Probability",
+        height=420,
+    )
+
+    fig.update_yaxes(range=[0, 1.02])
 
     return fig
 
 
 def plot_qq(df, column):
     """
-    Creates a Q-Q plot against the normal distribution.
+    Creates an interactive Q-Q plot against the normal distribution.
     This helps check whether data is approximately normal.
     """
 
     clean_data = prepare_numeric_data(df, column)
 
-    fig, ax = plt.subplots(figsize=(5, 5))
+    osm, osr = stats.probplot(clean_data, dist="norm", fit=False)
+    fit_result = stats.probplot(clean_data, dist="norm", fit=True)
+    slope, intercept, r_value = fit_result[1]
 
-    stats.probplot(clean_data, dist="norm", plot=ax)
+    osm = np.array(osm)
+    osr = np.array(osr)
 
-    ax.set_title(f"Q-Q Plot of {column} Against Normal Distribution", fontsize=14)
-    ax.grid(True, alpha=0.3)
+    line_x = np.linspace(osm.min(), osm.max(), 200)
+    line_y = slope * line_x + intercept
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=osm,
+            y=osr,
+            mode="markers",
+            marker={
+                "size": 7,
+                "color": PLOT_COLORS["primary"],
+                "opacity": 0.85,
+            },
+            name="Observed quantiles",
+            hovertemplate="Theoretical: %{x:.4f}<br>Observed: %{y:.4f}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=line_x,
+            y=line_y,
+            mode="lines",
+            line={
+                "color": PLOT_COLORS["green"],
+                "width": 2,
+                "dash": "dash",
+            },
+            name=f"Reference line | R²={r_value ** 2:.4f}",
+            hovertemplate="Reference line<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Q-Q Plot of {column} Against Normal Distribution",
+        x_title="Theoretical Quantiles",
+        y_title="Ordered Values",
+        height=460,
+    )
 
     return fig
 
 
 def plot_pmf(df, column):
     """
-    Creates a PMF-like bar chart for discrete numerical data.
+    Creates an interactive PMF-like bar chart for discrete numerical data.
     """
 
     clean_data = prepare_numeric_data(df, column)
 
     value_counts = clean_data.value_counts(normalize=True).sort_index()
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.bar(value_counts.index.astype(str), value_counts.values, edgecolor="black")
+    fig.add_trace(
+        go.Bar(
+            x=value_counts.index.astype(str),
+            y=value_counts.values,
+            marker={
+                "color": PLOT_COLORS["secondary"],
+                "line": {
+                    "color": PLOT_COLORS["bg"],
+                    "width": 1,
+                },
+            },
+            name="Probability",
+            hovertemplate=f"{column}: %{{x}}<br>Probability: %{{y:.4f}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"PMF of {column}", fontsize=14)
-    ax.set_xlabel(column)
-    ax.set_ylabel("Probability")
-    ax.grid(True, axis="y", alpha=0.3)
+    fig = apply_plotly_theme(
+        fig,
+        title=f"PMF of {column}",
+        x_title=column,
+        y_title="Probability",
+        height=420,
+    )
+
+    fig.update_yaxes(range=[0, max(value_counts.values) * 1.15])
 
     return fig
 
+
+# ------------------------------------------------------------
+# General visualization interpretation
+# ------------------------------------------------------------
 
 def get_visualization_interpretation(df, column):
     """
@@ -221,6 +502,10 @@ def get_visualization_interpretation(df, column):
     return interpretations
 
 
+# ------------------------------------------------------------
+# Plot-specific interpretations
+# ------------------------------------------------------------
+
 def format_number(value):
     """
     Formats numbers nicely for interpretation text.
@@ -251,15 +536,21 @@ def interpret_histogram(df, column):
 
     interpretations = [
         f"The highest frequency appears around the range {format_number(bin_start)} to {format_number(bin_end)}.",
-        f"The mean is {format_number(mean_value)} and the median is {format_number(median_value)}."
+        f"The mean is {format_number(mean_value)} and the median is {format_number(median_value)}.",
     ]
 
     if skewness > 0.5:
-        interpretations.append("The histogram suggests right-skewness, meaning there may be some larger values stretching the right tail.")
+        interpretations.append(
+            "The histogram suggests right-skewness, meaning there may be some larger values stretching the right tail."
+        )
     elif skewness < -0.5:
-        interpretations.append("The histogram suggests left-skewness, meaning there may be some smaller values stretching the left tail.")
+        interpretations.append(
+            "The histogram suggests left-skewness, meaning there may be some smaller values stretching the left tail."
+        )
     else:
-        interpretations.append("The histogram looks fairly balanced based on the skewness value.")
+        interpretations.append(
+            "The histogram looks fairly balanced based on the skewness value."
+        )
 
     return interpretations
 
@@ -286,7 +577,7 @@ def interpret_boxplot(df, column):
     interpretations = [
         f"The middle 50% of the data lies between Q1 = {format_number(q1)} and Q3 = {format_number(q3)}.",
         f"The median value is {format_number(median)}.",
-        f"The IQR is {format_number(iqr)}, which represents the spread of the middle half of the data."
+        f"The IQR is {format_number(iqr)}, which represents the spread of the middle half of the data.",
     ]
 
     if outlier_count > 0:
@@ -294,7 +585,9 @@ def interpret_boxplot(df, column):
             f"The boxplot detects {outlier_count} possible outlier(s), around {format_number(outlier_percentage)}% of the valid values."
         )
     else:
-        interpretations.append("The boxplot does not detect clear outliers using the 1.5 × IQR rule.")
+        interpretations.append(
+            "The boxplot does not detect clear outliers using the 1.5 × IQR rule."
+        )
 
     return interpretations
 
@@ -353,7 +646,7 @@ def interpret_cdf(df, column):
         f"About 25% of the values are less than or equal to {format_number(q25)}.",
         f"About 50% of the values are less than or equal to {format_number(q50)}. This is the median.",
         f"About 75% of the values are less than or equal to {format_number(q75)}.",
-        "A steep part of the CDF means many values are concentrated in that range."
+        "A steep part of the CDF means many values are concentrated in that range.",
     ]
 
     return interpretations
@@ -374,29 +667,47 @@ def interpret_qq_plot(df, column):
     kurtosis = clean_data.kurt()
 
     interpretations = [
-        f"The Q-Q plot correlation value is approximately {format_number(r_squared)}."
+        f"The Q-Q plot R² value is approximately {format_number(r_squared)}."
     ]
 
     if r_squared >= 0.98:
-        interpretations.append("The points are very close to the reference line, so the data looks close to normally distributed.")
+        interpretations.append(
+            "The points are very close to the reference line, so the data looks close to normally distributed."
+        )
     elif r_squared >= 0.95:
-        interpretations.append("The points follow the reference line reasonably well, but there may be some deviations from normality.")
+        interpretations.append(
+            "The points follow the reference line reasonably well, but there may be some deviations from normality."
+        )
     else:
-        interpretations.append("The points deviate noticeably from the reference line, so the data may not be normally distributed.")
+        interpretations.append(
+            "The points deviate noticeably from the reference line, so the data may not be normally distributed."
+        )
 
     if skewness > 0.5:
-        interpretations.append("The data has positive skewness, so the right tail may be affecting the Q-Q plot.")
+        interpretations.append(
+            "The data has positive skewness, so the right tail may be affecting the Q-Q plot."
+        )
     elif skewness < -0.5:
-        interpretations.append("The data has negative skewness, so the left tail may be affecting the Q-Q plot.")
+        interpretations.append(
+            "The data has negative skewness, so the left tail may be affecting the Q-Q plot."
+        )
     else:
-        interpretations.append("The skewness is close to 0, so the distribution is not strongly skewed.")
+        interpretations.append(
+            "The skewness is close to 0, so the distribution is not strongly skewed."
+        )
 
     if kurtosis > 1:
-        interpretations.append("The excess kurtosis is high, suggesting heavier tails or possible extreme values.")
+        interpretations.append(
+            "The excess kurtosis is high, suggesting heavier tails or possible extreme values."
+        )
     elif kurtosis < -1:
-        interpretations.append("The excess kurtosis is low, suggesting a flatter distribution with lighter tails.")
+        interpretations.append(
+            "The excess kurtosis is low, suggesting a flatter distribution with lighter tails."
+        )
     else:
-        interpretations.append("The kurtosis is not extremely different from a normal distribution.")
+        interpretations.append(
+            "The kurtosis is not extremely different from a normal distribution."
+        )
 
     return interpretations
 
@@ -416,13 +727,17 @@ def interpret_pmf(df, column):
     interpretations = [
         f"The most likely value is {format_number(top_value)}.",
         f"This value appears with probability approximately {format_number(top_probability)}.",
-        f"The variable has {clean_data.nunique()} unique value(s)."
+        f"The variable has {clean_data.nunique()} unique value(s).",
     ]
 
     if clean_data.nunique() <= 10:
-        interpretations.append("Because there are few unique values, the PMF is a good way to show this variable.")
+        interpretations.append(
+            "Because there are few unique values, the PMF is a good way to show this variable."
+        )
     else:
-        interpretations.append("There are many unique values, so the PMF may become harder to read.")
+        interpretations.append(
+            "There are many unique values, so the PMF may become harder to read."
+        )
 
     return interpretations
 

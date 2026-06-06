@@ -20,23 +20,42 @@ THEME = {
 }
 
 
-PAGE_OPTIONS_LOCKED = [
+DATA_PAGES = [
     "Import dataset",
     "Column selection",
 ]
 
-PAGE_OPTIONS_UNLOCKED = [
+ANALYSIS_PAGES = [
     "Dataset overview",
     "Descriptive statistics",
     "Visualizations",
-    "Normality tests",
     "T-tests",
     "ANOVA",
     "Chi-square tests",
     "Z-tests",
     "Distribution fitting",
+]
+
+DIAGNOSTIC_PAGES = [
+    "Normality tests",
     "Central limit theorem",
 ]
+
+
+PAGE_ICONS = {
+    "Import dataset": "⬆️",
+    "Column selection": "▣",
+    "Dataset overview": "📋",
+    "Descriptive statistics": "▤",
+    "Visualizations": "〽️",
+    "T-tests": "𝑡",
+    "ANOVA": "A",
+    "Chi-square tests": "χ²",
+    "Z-tests": "𝑧",
+    "Distribution fitting": "⚙️",
+    "Normality tests": "〰️",
+    "Central limit theorem": "↗️",
+}
 
 
 def inject_global_css():
@@ -53,11 +72,11 @@ def inject_global_css():
             color: {THEME["text"]};
         }}
 
-        /* Reduce top padding */
+        /* Main content container */
         .block-container {{
-            padding-top: 1.4rem;
+            padding-top: 1.2rem;
             padding-bottom: 2rem;
-            max-width: 1250px;
+            max-width: 1220px;
         }}
 
         /* Sidebar */
@@ -70,15 +89,25 @@ def inject_global_css():
             padding-top: 1.1rem;
         }}
 
+        /* Hide Streamlit default decoration spacing a little */
+        header[data-testid="stHeader"] {{
+            background-color: rgba(0, 0, 0, 0);
+        }}
+
         /* Headings */
         h1, h2, h3, h4 {{
             color: {THEME["text"]};
             letter-spacing: -0.02em;
         }}
 
-        /* Labels and text */
+        /* Text */
         label, p, span, div {{
             color: inherit;
+        }}
+
+        /* Horizontal divider */
+        hr {{
+            border-color: {THEME["border"]};
         }}
 
         /* Cards */
@@ -147,6 +176,11 @@ def inject_global_css():
             box-shadow: 0 0 8px {THEME["warning"]};
         }}
 
+        .dot-error {{
+            background: {THEME["error"]};
+            box-shadow: 0 0 8px {THEME["error"]};
+        }}
+
         .app-logo-box {{
             width: 42px;
             height: 42px;
@@ -157,6 +191,7 @@ def inject_global_css():
             justify-content: center;
             font-size: 22px;
             font-weight: 900;
+            color: white;
         }}
 
         .sidebar-title {{
@@ -164,12 +199,13 @@ def inject_global_css():
             font-weight: 850;
             color: {THEME["text"]};
             margin-bottom: 0px;
+            line-height: 1.1;
         }}
 
         .sidebar-subtitle {{
             font-size: 12px;
             color: {THEME["muted"]};
-            margin-top: -2px;
+            margin-top: 2px;
         }}
 
         .sidebar-section {{
@@ -190,12 +226,18 @@ def inject_global_css():
             color: {THEME["text"]};
             font-weight: 700;
             transition: 0.15s ease-in-out;
+            min-height: 40px;
         }}
 
         .stButton > button:hover {{
             border-color: {THEME["primary"]};
             color: {THEME["text"]};
             background-color: {THEME["card_hover"]};
+        }}
+
+        .stButton > button:disabled {{
+            opacity: 0.45;
+            cursor: not-allowed;
         }}
 
         /* Primary buttons */
@@ -218,6 +260,11 @@ def inject_global_css():
             border: 1px solid {THEME["border"]};
             color: {THEME["text"]};
             border-radius: 12px;
+        }}
+
+        /* Sliders */
+        .stSlider {{
+            color: {THEME["primary"]};
         }}
 
         /* Dataframes */
@@ -245,6 +292,7 @@ def inject_global_css():
             border: 1px solid {THEME["border"]};
             padding: 8px 18px;
             color: {THEME["muted"]};
+            font-weight: 700;
         }}
 
         .stTabs [aria-selected="true"] {{
@@ -252,17 +300,97 @@ def inject_global_css():
             border-color: {THEME["primary"]};
             color: {THEME["text"]};
         }}
+
+        /* Alerts */
+        div[data-testid="stAlert"] {{
+            border-radius: 12px;
+            border: 1px solid {THEME["border"]};
+        }}
+
+        /* File uploader */
+        section[data-testid="stFileUploaderDropzone"] {{
+            background-color: {THEME["card"]};
+            border: 1px dashed {THEME["border"]};
+            border-radius: 16px;
+        }}
+
+        /* Sidebar navigation active/inactive text markers */
+        .nav-hint {{
+            color: {THEME["muted"]};
+            font-size: 12px;
+            line-height: 1.5;
+        }}
+
+        .footer-note {{
+            color: {THEME["muted"]};
+            font-size: 12px;
+            margin-top: 8px;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
+def _safe_page_key(page_name):
+    """
+    Creates safe Streamlit widget keys from page names.
+    """
+
+    return (
+        page_name.lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+        .replace("²", "2")
+        .replace("/", "_")
+    )
+
+
+def _nav_button(page_name, disabled=False):
+    """
+    Sidebar navigation button.
+    Stores the selected page in st.session_state.current_page.
+    """
+
+    current_page = st.session_state.get("current_page", "Import dataset")
+    is_active = current_page == page_name
+
+    icon = PAGE_ICONS.get(page_name, "")
+
+    if is_active:
+        button_label = f"▸  {icon}  {page_name}"
+    else:
+        button_label = f"   {icon}  {page_name}"
+
+    if st.button(
+        button_label,
+        key=f"nav_{_safe_page_key(page_name)}",
+        disabled=disabled,
+        use_container_width=True,
+    ):
+        st.session_state.current_page = page_name
+        st.rerun()
+
+
 def render_sidebar():
     """
-    Renders the main sidebar navigation.
+    Renders sidebar navigation.
     Returns selected page name.
     """
+
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Import dataset"
+
+    has_dataset = st.session_state.get("df") is not None
+    has_selected_dataset = st.session_state.get("selected_df") is not None
+
+    locked_pages = ANALYSIS_PAGES + DIAGNOSTIC_PAGES
+
+    # Safety rule:
+    # If selected dataset disappears while user is on an analysis page,
+    # move user back to the correct setup page.
+    if st.session_state.current_page in locked_pages and not has_selected_dataset:
+        st.session_state.current_page = "Column selection" if has_dataset else "Import dataset"
 
     with st.sidebar:
         col_logo, col_title = st.columns([0.25, 0.75])
@@ -276,30 +404,35 @@ def render_sidebar():
 
         st.divider()
 
-        has_dataset = st.session_state.get("df") is not None
-        has_selected_dataset = st.session_state.get("selected_df") is not None
-
         st.markdown('<div class="sidebar-section">Data</div>', unsafe_allow_html=True)
 
-        data_page = st.radio(
-            "Data navigation",
-            PAGE_OPTIONS_LOCKED,
-            label_visibility="collapsed",
-            key="data_nav",
-        )
+        for page in DATA_PAGES:
+            if page == "Column selection":
+                _nav_button(page, disabled=not has_dataset)
+            else:
+                _nav_button(page, disabled=False)
 
         st.markdown('<div class="sidebar-section">Analysis</div>', unsafe_allow_html=True)
 
         if has_selected_dataset:
-            analysis_page = st.radio(
-                "Analysis navigation",
-                PAGE_OPTIONS_UNLOCKED,
-                label_visibility="collapsed",
-                key="analysis_nav",
-            )
+            for page in ANALYSIS_PAGES:
+                _nav_button(page, disabled=False)
         else:
-            st.caption("Upload a dataset and select columns to unlock analysis pages.")
-            analysis_page = None
+            st.markdown(
+                '<div class="nav-hint">Upload a dataset and select columns to unlock analysis pages.</div>',
+                unsafe_allow_html=True,
+            )
+
+        st.markdown('<div class="sidebar-section">Diagnostics</div>', unsafe_allow_html=True)
+
+        if has_selected_dataset:
+            for page in DIAGNOSTIC_PAGES:
+                _nav_button(page, disabled=False)
+        else:
+            st.markdown(
+                '<div class="nav-hint">Diagnostics unlock after column selection.</div>',
+                unsafe_allow_html=True,
+            )
 
         st.divider()
 
@@ -314,16 +447,12 @@ def render_sidebar():
         else:
             st.info("No file loaded")
 
-        if st.button("Reset project"):
+        if st.button("Reset project", use_container_width=True):
             reset_dataset_state()
+            st.session_state.current_page = "Import dataset"
             st.rerun()
 
-    # Priority: if user recently selected an analysis page, use it.
-    # Streamlit radio widgets both exist, so this logic keeps navigation simple.
-    if has_selected_dataset and analysis_page is not None:
-        return analysis_page
-
-    return data_page
+    return st.session_state.current_page
 
 
 def reset_dataset_state():
@@ -337,10 +466,14 @@ def reset_dataset_state():
         "column_summary",
         "selected_columns",
         "uploaded_file_name",
+
+        # Distribution fitting session state
         "dist_fit_results",
         "dist_fit_data",
         "dist_fit_column_name",
         "dist_fit_bins_used",
+
+        # CLT session state
         "clt_data",
         "clt_sample_means",
         "clt_column_name",
@@ -359,9 +492,10 @@ def render_top_bar(page_title):
     Renders a compact top bar for every page.
     """
 
+    has_dataset = st.session_state.get("df") is not None
     has_selected_dataset = st.session_state.get("selected_df") is not None
 
-    left, right = st.columns([0.65, 0.35])
+    left, right = st.columns([0.62, 0.38])
 
     with left:
         st.markdown(f"### {page_title}")
@@ -381,13 +515,29 @@ def render_top_bar(page_title):
                 """,
                 unsafe_allow_html=True,
             )
+
+        elif has_dataset:
+            rows = st.session_state.df.shape[0]
+            cols = st.session_state.df.shape[1]
+            st.markdown(
+                f"""
+                <div style="text-align:right;">
+                    <span class="status-pill">
+                        <span class="status-dot dot-warning"></span>
+                        {rows:,} rows · {cols} columns detected
+                    </span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         else:
             st.markdown(
                 """
                 <div style="text-align:right;">
                     <span class="status-pill">
                         <span class="status-dot dot-warning"></span>
-                        No selected dataset
+                        No file loaded
                     </span>
                 </div>
                 """,
@@ -428,6 +578,126 @@ def info_card(title, lines):
             <ul style="margin-bottom:0; color:{THEME["muted"]};">
                 {bullet_lines}
             </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def result_status_card(title, status, message, status_type="info"):
+    """
+    Reusable status card for assumptions/results.
+
+    status_type options:
+    - success
+    - warning
+    - error
+    - info
+    """
+
+    color_map = {
+        "success": THEME["success"],
+        "warning": THEME["warning"],
+        "error": THEME["error"],
+        "info": THEME["info"],
+    }
+
+    color = color_map.get(status_type, THEME["info"])
+
+    st.markdown(
+        f"""
+        <div style="
+            background:{THEME["card"]};
+            border:1px solid {THEME["border"]};
+            border-left:5px solid {color};
+            border-radius:14px;
+            padding:16px;
+            margin-bottom:10px;
+        ">
+            <div style="font-size:13px; color:{THEME["muted"]}; font-weight:700;">
+                {title}
+            </div>
+            <div style="font-size:20px; color:{color}; font-weight:850; margin-top:4px;">
+                {status}
+            </div>
+            <div style="font-size:13px; color:{THEME["muted"]}; margin-top:6px; line-height:1.5;">
+                {message}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def selected_column_card(column, dtype_text, unique_count, missing_count, badge="Column", badge_type="info"):
+    """
+    Reusable selected column display card.
+    """
+
+    color_map = {
+        "success": THEME["success"],
+        "warning": THEME["warning"],
+        "error": THEME["error"],
+        "info": THEME["info"],
+        "primary": THEME["primary"],
+        "secondary": THEME["secondary"],
+    }
+
+    badge_color = color_map.get(badge_type, THEME["info"])
+
+    return f"""
+    <div style="
+        border: 1px solid {THEME["border"]};
+        background: {THEME["card"]};
+        border-radius: 14px;
+        padding: 16px;
+        min-height: 125px;
+    ">
+        <div style="font-weight:800; font-size:16px; color:{THEME["text"]}; margin-bottom:8px;">
+            {column}
+        </div>
+        <div style="
+            display:inline-block;
+            padding:4px 9px;
+            border-radius:999px;
+            background:{badge_color}22;
+            color:{badge_color};
+            font-size:12px;
+            font-weight:800;
+            margin-bottom:8px;
+        ">
+            {badge}
+        </div>
+        <div style="font-size:13px; color:{THEME["muted"]}; margin-top:8px;">
+            Type: <b>{dtype_text}</b>
+        </div>
+        <div style="font-size:13px; color:{THEME["muted"]};">
+            Unique values: <b>{unique_count}</b>
+        </div>
+        <div style="font-size:13px; color:{THEME["muted"]};">
+            Missing values: <b>{missing_count}</b>
+        </div>
+    </div>
+    """
+
+
+def render_card_grid(card_html_list, min_width=220):
+    """
+    Renders a responsive grid of HTML cards.
+    """
+
+    cards = "".join(card_html_list)
+
+    st.markdown(
+        f"""
+        <div style="
+            display:grid;
+            grid-template-columns: repeat(auto-fit, minmax({min_width}px, 1fr));
+            gap: 14px;
+            margin-top: 12px;
+            margin-bottom: 28px;
+        ">
+            {cards}
         </div>
         """,
         unsafe_allow_html=True,
