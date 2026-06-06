@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-
+import numpy as np
 
 from utils.data_loader import (
     load_dataset,
@@ -89,6 +89,18 @@ from utils.distribution_fitting import (
     plot_distribution_qq,
     get_distribution_fit_interpretation,
     get_selected_distribution_interpretation
+)
+
+from utils.clt_simulation import (
+    simulate_sample_means,
+    create_clt_summary_table,
+    plot_original_distribution,
+    plot_sampling_distribution,
+    simulate_multiple_sample_sizes,
+    plot_sample_size_comparison,
+    run_normality_check_on_sample_means,
+    create_sample_means_normality_table,
+    get_clt_interpretation
 )
 # ------------------------------------------------------------
 # Page configuration
@@ -2105,4 +2117,252 @@ if st.session_state.step == "distribution_fitting":
                 st.rerun()
 
         with col_next:
-            st.button("Continue to CLT Simulation Coming Next", type="primary")
+            if st.button("Continue to CLT Simulation", type="primary"):
+                st.session_state.step = "clt_simulation"
+                st.rerun()
+
+
+# ------------------------------------------------------------
+# STEP 12: Central Limit Theorem Simulation
+# ------------------------------------------------------------
+
+if st.session_state.step == "clt_simulation":
+
+    selected_df = st.session_state.selected_df
+
+    st.subheader("Step 12: Central Limit Theorem Simulation")
+
+    st.info(
+        "The Central Limit Theorem says that the sampling distribution of the sample mean becomes approximately normal "
+        "as the sample size increases, even if the original data is not normally distributed."
+    )
+
+    numerical_columns = get_numerical_columns(selected_df)
+
+    if len(numerical_columns) == 0:
+        st.warning("No numerical columns found in the selected dataset.")
+
+        if st.button("Back to Distribution Fitting"):
+            st.session_state.step = "distribution_fitting"
+            st.rerun()
+
+    else:
+        selected_column = st.selectbox(
+            "Choose numerical column for CLT simulation",
+            numerical_columns,
+            key="clt_column"
+        )
+
+        st.write("### Simulation Settings")
+
+        col_set1, col_set2, col_set3 = st.columns(3)
+
+        with col_set1:
+            sample_size = st.slider(
+                "Sample size",
+                min_value=2,
+                max_value=200,
+                value=30,
+                key="clt_sample_size"
+            )
+
+        with col_set2:
+            number_of_samples = st.slider(
+                "Number of repeated samples",
+                min_value=100,
+                max_value=10000,
+                value=1000,
+                step=100,
+                key="clt_number_of_samples"
+            )
+
+        with col_set3:
+            random_seed = st.number_input(
+                "Random seed",
+                value=42,
+                step=1,
+                key="clt_random_seed"
+            )
+
+        bins = st.slider(
+            "Histogram bins",
+            min_value=10,
+            max_value=60,
+            value=30,
+            key="clt_bins"
+        )
+
+        if st.button("Run CLT Simulation", type="primary"):
+            try:
+                data, sample_means = simulate_sample_means(
+                    selected_df,
+                    selected_column,
+                    sample_size=sample_size,
+                    number_of_samples=number_of_samples,
+                    random_seed=int(random_seed)
+                )
+
+                st.session_state.clt_data = data
+                st.session_state.clt_sample_means = sample_means
+                st.session_state.clt_column_name = selected_column
+                st.session_state.clt_sample_size_used = sample_size
+                st.session_state.clt_number_of_samples_used = number_of_samples
+                st.session_state.clt_bins_used = bins
+
+            except Exception as error:
+                st.error(error)
+
+        if "clt_sample_means" in st.session_state:
+
+            data = st.session_state.clt_data
+            sample_means = st.session_state.clt_sample_means
+            column_name = st.session_state.clt_column_name
+            sample_size_used = st.session_state.clt_sample_size_used
+            number_of_samples_used = st.session_state.clt_number_of_samples_used
+            bins_used = st.session_state.clt_bins_used
+
+            original_mean = data.mean()
+            original_std = data.std(ddof=1)
+            theoretical_standard_error = original_std / np.sqrt(sample_size_used)
+
+            st.write(f"### CLT Results for `{column_name}`")
+
+            plot_col, interpretation_col = st.columns([1.2, 1])
+
+            with plot_col:
+                st.write("#### Original Data Distribution")
+                fig_original = plot_original_distribution(
+                    data,
+                    column_name,
+                    bins=bins_used
+                )
+                st.pyplot(fig_original)
+
+            with interpretation_col:
+                with st.container(border=True):
+                    st.write("#### What this original plot shows")
+                    st.write(
+                        "- This is the distribution of the actual selected column."
+                    )
+                    st.write(
+                        "- It may be normal, skewed, flat, or irregular."
+                    )
+                    st.write(
+                        "- CLT does not require the original distribution to be perfectly normal."
+                    )
+
+            plot_col2, interpretation_col2 = st.columns([1.2, 1])
+
+            with plot_col2:
+                st.write("#### Sampling Distribution of Sample Means")
+                fig_sampling = plot_sampling_distribution(
+                    sample_means,
+                    original_mean,
+                    theoretical_standard_error,
+                    bins=bins_used
+                )
+                st.pyplot(fig_sampling)
+
+            with interpretation_col2:
+                with st.container(border=True):
+                    st.write("#### CLT Interpretation")
+
+                    interpretation = get_clt_interpretation(
+                        data,
+                        sample_means,
+                        sample_size_used,
+                        number_of_samples_used
+                    )
+
+                    for line in interpretation:
+                        st.write(f"- {line}")
+
+            st.write("#### CLT Summary Table")
+
+            summary_table = create_clt_summary_table(
+                data,
+                sample_means,
+                sample_size_used
+            )
+
+            st.dataframe(summary_table, use_container_width=True)
+
+            st.divider()
+
+            st.write("### Normality Check on Sample Means")
+
+            shapiro_result = run_normality_check_on_sample_means(
+                sample_means,
+                alpha=0.05
+            )
+
+            shapiro_table = create_sample_means_normality_table(shapiro_result)
+
+            st.dataframe(shapiro_table, use_container_width=True)
+
+            st.caption(
+                "This normality test is performed on the simulated sample means, not on the original data."
+            )
+
+            st.divider()
+
+            st.write("### Compare Different Sample Sizes")
+
+            st.caption(
+                "This shows how the sampling distribution changes when sample size increases."
+            )
+
+            sample_size_options = st.multiselect(
+                "Choose sample sizes to compare",
+                [2, 5, 10, 20, 30, 50, 100],
+                default=[5, 30, 100],
+                key="clt_compare_sample_sizes"
+            )
+
+            comparison_samples = st.slider(
+                "Number of samples for comparison plot",
+                min_value=500,
+                max_value=5000,
+                value=1000,
+                step=500,
+                key="clt_comparison_samples"
+            )
+
+            if st.button("Run Sample Size Comparison"):
+                try:
+                    _, sample_size_results = simulate_multiple_sample_sizes(
+                        selected_df,
+                        column_name,
+                        sample_size_options,
+                        number_of_samples=comparison_samples,
+                        random_seed=int(random_seed)
+                    )
+
+                    fig_comparison = plot_sample_size_comparison(sample_size_results)
+                    st.pyplot(fig_comparison)
+
+                    st.write("#### How to read this comparison")
+                    st.write(
+                        "- Larger sample sizes usually create a narrower sampling distribution."
+                    )
+                    st.write(
+                        "- This happens because the standard error decreases as sample size increases."
+                    )
+                    st.write(
+                        "- In simple terms, larger samples give more stable sample means."
+                    )
+
+                except Exception as error:
+                    st.error(error)
+
+        st.divider()
+
+        col_back, col_finish = st.columns([1, 2])
+
+        with col_back:
+            if st.button("Back to Distribution Fitting"):
+                st.session_state.step = "distribution_fitting"
+                st.rerun()
+
+        with col_finish:
+            st.button("Toolkit Complete", type="primary")
