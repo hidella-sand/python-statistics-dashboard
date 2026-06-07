@@ -1,17 +1,64 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from scipy import stats
 
 
-def format_number(value):
+PLOT_COLORS = {
+    "primary": "#7C5CFF",
+    "secondary": "#A78BFA",
+    "blue": "#60A5FA",
+    "green": "#00B894",
+    "warning": "#F59E0B",
+    "error": "#EF4444",
+    "bg": "#181A1F",
+    "card": "#242529",
+    "grid": "#3A3B40",
+    "text": "#F5F5F5",
+    "muted": "#A3A3A3",
+}
+
+
+def format_number(value, decimals=5):
     """
     Formats numbers nicely for tables and interpretations.
     """
     try:
-        return round(float(value), 5)
+        if pd.isna(value):
+            return "N/A"
+
+        value = float(value)
+
+        if value == 0:
+            return "0"
+
+        if abs(value) < 0.00001:
+            return f"{value:.2e}"
+
+        return round(value, decimals)
+
     except Exception:
         return value
+
+
+def format_p_value(p_value):
+    """
+    Formats p-values in a clean academic way.
+    """
+
+    try:
+        p_value = float(p_value)
+
+        if p_value == 0:
+            return "< 1e-300"
+
+        if p_value < 0.00001:
+            return f"{p_value:.2e}"
+
+        return round(p_value, 5)
+
+    except Exception:
+        return p_value
 
 
 def interpret_p_value(p_value, alpha=0.05):
@@ -34,6 +81,55 @@ def prepare_numeric_data(df, column):
         raise ValueError(f"Column '{column}' does not contain valid numerical data.")
 
     return numeric_data
+
+
+def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
+    """
+    Applies dark dashboard theme to Plotly figures.
+    """
+
+    fig.update_layout(
+        title={
+            "text": title if title else "",
+            "x": 0.02,
+            "xanchor": "left",
+            "font": {"size": 18, "color": PLOT_COLORS["text"]},
+        },
+        paper_bgcolor=PLOT_COLORS["bg"],
+        plot_bgcolor=PLOT_COLORS["card"],
+        font={"color": PLOT_COLORS["text"], "family": "Arial"},
+        height=height,
+        margin={"l": 45, "r": 25, "t": 60, "b": 45},
+        hovermode="closest",
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1,
+            "font": {"color": PLOT_COLORS["muted"]},
+        },
+    )
+
+    fig.update_xaxes(
+        title_text=x_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    fig.update_yaxes(
+        title_text=y_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    return fig
 
 
 # ------------------------------------------------------------
@@ -84,23 +180,54 @@ def run_one_sample_ttest(df, numeric_column, hypothesized_mean, alpha=0.05):
 
 def plot_one_sample_ttest(df, numeric_column, hypothesized_mean):
     """
-    Histogram with sample mean and hypothesized mean.
+    Plotly histogram with sample mean and hypothesized mean.
     """
 
     data = prepare_numeric_data(df, numeric_column)
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    sample_mean = data.mean()
 
-    ax.hist(data, bins=20, edgecolor="black", alpha=0.75)
+    fig = go.Figure()
 
-    ax.axvline(data.mean(), linestyle="--", linewidth=2, label="Sample Mean")
-    ax.axvline(hypothesized_mean, linestyle="-", linewidth=2, label="Hypothesized Mean")
+    fig.add_trace(
+        go.Histogram(
+            x=data,
+            nbinsx=25,
+            marker={
+                "color": PLOT_COLORS["secondary"],
+                "line": {"color": PLOT_COLORS["bg"], "width": 1},
+            },
+            opacity=0.85,
+            name="Observed values",
+            hovertemplate=f"{numeric_column}: %{{x}}<br>Count: %{{y}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"One-sample t-test: {numeric_column}", fontsize=12)
-    ax.set_xlabel(numeric_column)
-    ax.set_ylabel("Frequency")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+    fig.add_vline(
+        x=sample_mean,
+        line_width=2,
+        line_dash="dash",
+        line_color=PLOT_COLORS["green"],
+        annotation_text="Sample Mean",
+        annotation_position="top left",
+    )
+
+    fig.add_vline(
+        x=hypothesized_mean,
+        line_width=2,
+        line_dash="dot",
+        line_color=PLOT_COLORS["warning"],
+        annotation_text="Hypothesized Mean",
+        annotation_position="top right",
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"One-sample t-test: {numeric_column}",
+        x_title=numeric_column,
+        y_title="Frequency",
+        height=420,
+    )
 
     return fig
 
@@ -136,19 +263,18 @@ def run_independent_ttest(df, numeric_column, group_column, group1, group2, alph
     """
 
     group1_data = pd.to_numeric(
-        df[df[group_column] == group1][numeric_column],
+        df[df[group_column].astype(str) == str(group1)][numeric_column],
         errors="coerce"
     ).dropna()
 
     group2_data = pd.to_numeric(
-        df[df[group_column] == group2][numeric_column],
+        df[df[group_column].astype(str) == str(group2)][numeric_column],
         errors="coerce"
     ).dropna()
 
     if len(group1_data) < 2 or len(group2_data) < 2:
         raise ValueError("Each group must have at least 2 valid numerical values.")
 
-    # Levene's test checks equal variance assumption
     levene_statistic, levene_p_value = stats.levene(group1_data, group2_data)
 
     equal_variance_assumed = levene_p_value >= alpha
@@ -199,27 +325,48 @@ def run_independent_ttest(df, numeric_column, group_column, group1, group2, alph
 
 def plot_independent_ttest(df, numeric_column, group_column, group1, group2):
     """
-    Boxplot comparing two independent groups.
+    Plotly boxplot comparing two independent groups.
     """
 
     group1_data = pd.to_numeric(
-        df[df[group_column] == group1][numeric_column],
+        df[df[group_column].astype(str) == str(group1)][numeric_column],
         errors="coerce"
     ).dropna()
 
     group2_data = pd.to_numeric(
-        df[df[group_column] == group2][numeric_column],
+        df[df[group_column].astype(str) == str(group2)][numeric_column],
         errors="coerce"
     ).dropna()
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.boxplot([group1_data, group2_data], tick_labels=[str(group1), str(group2)])
+    fig.add_trace(
+        go.Box(
+            y=group1_data,
+            name=str(group1),
+            marker_color=PLOT_COLORS["primary"],
+            boxmean=True,
+            hovertemplate=f"{group1}<br>{numeric_column}: %{{y}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"{numeric_column} by {group_column}", fontsize=12)
-    ax.set_xlabel(group_column)
-    ax.set_ylabel(numeric_column)
-    ax.grid(True, alpha=0.3)
+    fig.add_trace(
+        go.Box(
+            y=group2_data,
+            name=str(group2),
+            marker_color=PLOT_COLORS["secondary"],
+            boxmean=True,
+            hovertemplate=f"{group2}<br>{numeric_column}: %{{y}}<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Independent t-test: {numeric_column} by {group_column}",
+        x_title=group_column,
+        y_title=numeric_column,
+        height=420,
+    )
 
     return fig
 
@@ -276,7 +423,7 @@ def run_paired_ttest(df, before_column, after_column, alpha=0.05):
 
 def plot_paired_ttest(df, before_column, after_column):
     """
-    Line plot showing before-after paired values.
+    Plotly paired before-after line plot.
     """
 
     paired_df = df[[before_column, after_column]].copy()
@@ -286,20 +433,45 @@ def plot_paired_ttest(df, before_column, after_column):
 
     paired_df = paired_df.dropna()
 
-    # Limit lines for readability
-    plot_df = paired_df.head(50)
+    plot_df = paired_df.head(80)
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    for _, row in plot_df.iterrows():
-        ax.plot([0, 1], [row[before_column], row[after_column]], marker="o", alpha=0.5)
+    for index, row in plot_df.iterrows():
+        fig.add_trace(
+            go.Scatter(
+                x=[before_column, after_column],
+                y=[row[before_column], row[after_column]],
+                mode="lines+markers",
+                line={"color": "rgba(167, 139, 250, 0.35)", "width": 1.5},
+                marker={"size": 6, "color": PLOT_COLORS["primary"]},
+                showlegend=False,
+                hovertemplate="Measurement: %{x}<br>Value: %{y}<extra></extra>",
+            )
+        )
 
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels([before_column, after_column])
+    before_mean = paired_df[before_column].mean()
+    after_mean = paired_df[after_column].mean()
 
-    ax.set_title("Paired t-test: Before vs After", fontsize=12)
-    ax.set_ylabel("Value")
-    ax.grid(True, alpha=0.3)
+    fig.add_trace(
+        go.Scatter(
+            x=[before_column, after_column],
+            y=[before_mean, after_mean],
+            mode="lines+markers",
+            line={"color": PLOT_COLORS["green"], "width": 4},
+            marker={"size": 10},
+            name="Mean change",
+            hovertemplate="Measurement: %{x}<br>Mean: %{y:.4f}<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Paired t-test: {before_column} vs {after_column}",
+        x_title="Measurement",
+        y_title="Value",
+        height=440,
+    )
 
     return fig
 
@@ -321,9 +493,16 @@ def create_ttest_result_table(result):
         if key in hidden_keys:
             continue
 
+        if key == "p-value":
+            formatted_value = format_p_value(value)
+        elif key == "Levene p-value":
+            formatted_value = format_p_value(value)
+        else:
+            formatted_value = format_number(value)
+
         rows.append({
             "Metric": key,
-            "Value": format_number(value)
+            "Value": formatted_value
         })
 
     return pd.DataFrame(rows)
@@ -340,7 +519,7 @@ def get_ttest_interpretation(result):
     interpretation.append(f"**H1:** {result['H1']}")
 
     interpretation.append(
-        f"The p-value is {format_number(result['p-value'])}, and alpha is {result['Alpha']}."
+        f"The p-value is {format_p_value(result['p-value'])}, and alpha is {result['Alpha']}."
     )
 
     if result["Decision"] == "Reject H0":
