@@ -1366,3 +1366,1155 @@ def plot_anova_residual_histogram(residuals):
         x_label="Residuals",
         bins=25
     )
+
+# ------------------------------------------------------------
+# Chi-square assumption checks
+# ------------------------------------------------------------
+
+def check_chi_square_gof_assumptions(df, categorical_column, expected_distribution=None, alpha=0.05):
+    """
+    Checks assumptions for Chi-square goodness-of-fit test.
+
+    Main assumptions:
+    - One categorical variable
+    - Observed categories have valid counts
+    - Expected frequencies should usually be at least 5
+    - Observations should be independent
+    """
+
+    series = df[categorical_column].dropna().astype(str)
+
+    if series.empty:
+        raise ValueError("Selected categorical column has no valid values.")
+
+    observed_counts = series.value_counts().sort_index()
+    total_count = observed_counts.sum()
+    number_of_categories = len(observed_counts)
+
+    checks = []
+
+    checks.append(
+        create_check(
+            "Data type",
+            "Categorical variable",
+            "success",
+            f"`{categorical_column}` is treated as a categorical variable with {number_of_categories} categories."
+        )
+    )
+
+    if number_of_categories < 2:
+        checks.append(
+            create_check(
+                "Number of categories",
+                "Too few categories",
+                "error",
+                "Goodness-of-fit test requires at least two categories."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Number of categories",
+                "Category count acceptable",
+                "success",
+                f"{number_of_categories} categories detected."
+            )
+        )
+
+    if expected_distribution is None:
+        expected_counts = np.repeat(total_count / number_of_categories, number_of_categories)
+        expected_note = "Expected counts are assumed equal across categories."
+    else:
+        expected_distribution = np.array(expected_distribution, dtype=float)
+
+        if len(expected_distribution) != number_of_categories:
+            raise ValueError("Expected distribution length must match the number of categories.")
+
+        if not np.isclose(expected_distribution.sum(), 1):
+            expected_distribution = expected_distribution / expected_distribution.sum()
+
+        expected_counts = expected_distribution * total_count
+        expected_note = "Expected counts are based on the provided expected distribution."
+
+    expected_below_5 = int(np.sum(expected_counts < 5))
+    expected_below_5_percentage = (expected_below_5 / len(expected_counts)) * 100
+
+    if expected_below_5 == 0:
+        checks.append(
+            create_check(
+                "Expected frequencies",
+                "Expected counts acceptable",
+                "success",
+                "All expected frequencies are at least 5."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Expected frequencies",
+                "Small expected counts",
+                "warning",
+                f"{expected_below_5} expected count(s), about {format_number(expected_below_5_percentage, 2)}%, are below 5."
+            )
+        )
+
+    checks.append(
+        create_check(
+            "Independence",
+            "User must verify",
+            "warning",
+            "Chi-square assumes observations are independent. The app cannot fully verify this from the dataset alone."
+        )
+    )
+
+    error_count = sum(check["Status Type"] == "error" for check in checks)
+    warning_count = sum(check["Status Type"] == "warning" for check in checks)
+
+    if error_count > 0:
+        recommendation_title = "Do not run Chi-square yet"
+        recommendation_type = "error"
+        recommendation = "The selected data does not satisfy the minimum requirements for goodness-of-fit testing."
+
+    elif expected_below_5 > 0:
+        recommendation_title = "Use Chi-square carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "Some expected counts are below 5. Chi-square results may be less reliable. "
+            "Consider combining rare categories if it makes sense."
+        )
+
+    elif warning_count > 0:
+        recommendation_title = "Chi-square is usable with caution"
+        recommendation_type = "warning"
+        recommendation = (
+            "Expected counts look acceptable, but independence must be justified by the study design."
+        )
+
+    else:
+        recommendation_title = "Chi-square goodness-of-fit is appropriate"
+        recommendation_type = "success"
+        recommendation = "The main frequency assumptions look acceptable."
+
+    expected_table = pd.DataFrame({
+        "Category": observed_counts.index,
+        "Observed Count": observed_counts.values,
+        "Expected Count": expected_counts
+    })
+
+    return {
+        "test": "Chi-square goodness-of-fit",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "categorical_column": categorical_column,
+            "observed_counts": observed_counts,
+            "expected_counts": expected_counts,
+            "expected_table": expected_table,
+            "expected_note": expected_note,
+        }
+    }
+
+
+def check_chi_square_independence_assumptions(df, row_column, column_column, alpha=0.05):
+    """
+    Checks assumptions for Chi-square test of independence.
+
+    Main assumptions:
+    - Two categorical variables
+    - Expected cell counts should usually be at least 5
+    - Observations should be independent
+    """
+
+    clean_df = df[[row_column, column_column]].copy()
+    clean_df[row_column] = clean_df[row_column].astype(str)
+    clean_df[column_column] = clean_df[column_column].astype(str)
+    clean_df = clean_df.dropna()
+
+    if clean_df.empty:
+        raise ValueError("No valid rows available for selected categorical variables.")
+
+    contingency_table = pd.crosstab(clean_df[row_column], clean_df[column_column])
+
+    if contingency_table.shape[0] < 2 or contingency_table.shape[1] < 2:
+        raise ValueError("Chi-square independence test requires at least a 2x2 contingency table.")
+
+    chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
+
+    expected_df = pd.DataFrame(
+        expected,
+        index=contingency_table.index,
+        columns=contingency_table.columns
+    )
+
+    total_cells = expected.size
+    cells_below_5 = int((expected < 5).sum())
+    cells_below_1 = int((expected < 1).sum())
+    percentage_below_5 = (cells_below_5 / total_cells) * 100
+
+    checks = []
+
+    checks.append(
+        create_check(
+            "Data structure",
+            "Two categorical variables",
+            "success",
+            f"Testing association between `{row_column}` and `{column_column}`."
+        )
+    )
+
+    checks.append(
+        create_check(
+            "Contingency table size",
+            "Table size acceptable",
+            "success",
+            f"Table size is {contingency_table.shape[0]} × {contingency_table.shape[1]}."
+        )
+    )
+
+    if cells_below_1 > 0:
+        checks.append(
+            create_check(
+                "Expected frequencies",
+                "Very small expected cells",
+                "warning",
+                f"{cells_below_1} expected cell(s) are below 1. Chi-square may be unreliable."
+            )
+        )
+    elif percentage_below_5 > 20:
+        checks.append(
+            create_check(
+                "Expected frequencies",
+                "Many small expected cells",
+                "warning",
+                f"{format_number(percentage_below_5, 2)}% of expected cells are below 5. Chi-square may be unreliable."
+            )
+        )
+    elif cells_below_5 > 0:
+        checks.append(
+            create_check(
+                "Expected frequencies",
+                "Some small expected cells",
+                "warning",
+                f"{cells_below_5} expected cell(s), about {format_number(percentage_below_5, 2)}%, are below 5."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Expected frequencies",
+                "Expected counts acceptable",
+                "success",
+                "All expected cell counts are at least 5."
+            )
+        )
+
+    checks.append(
+        create_check(
+            "Independence",
+            "User must verify",
+            "warning",
+            "Chi-square assumes each observation is independent. The app cannot fully verify this from the dataset alone."
+        )
+    )
+
+    warning_count = sum(check["Status Type"] == "warning" for check in checks)
+
+    if cells_below_1 > 0 or percentage_below_5 > 20:
+        recommendation_title = "Use Chi-square carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "Expected frequency assumptions are weak. Consider combining rare categories, "
+            "removing sparse categories carefully, or using Fisher's exact test for small 2x2 tables."
+        )
+
+    elif warning_count > 0:
+        recommendation_title = "Chi-square is usable with caution"
+        recommendation_type = "warning"
+        recommendation = (
+            "Expected counts look mostly acceptable, but independence must be justified by the study design."
+        )
+
+    else:
+        recommendation_title = "Chi-square independence test is appropriate"
+        recommendation_type = "success"
+        recommendation = "The main frequency assumptions look acceptable."
+
+    return {
+        "test": "Chi-square independence",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "row_column": row_column,
+            "column_column": column_column,
+            "contingency_table": contingency_table,
+            "expected_table": expected_df,
+            "chi2": chi2,
+            "p_value": p_value,
+            "dof": dof,
+        }
+    }
+
+
+def plot_chi_square_gof_bars(observed_counts, expected_counts, categorical_column):
+    """
+    Plotly grouped bar chart for observed vs expected counts.
+    """
+
+    fig = go.Figure()
+
+    categories = observed_counts.index.astype(str)
+
+    fig.add_trace(
+        go.Bar(
+            x=categories,
+            y=observed_counts.values,
+            name="Observed",
+            marker_color=PLOT_COLORS["primary"],
+            hovertemplate="Category: %{x}<br>Observed: %{y}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=categories,
+            y=expected_counts,
+            name="Expected",
+            marker_color=PLOT_COLORS["secondary"],
+            hovertemplate="Category: %{x}<br>Expected: %{y:.4f}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(barmode="group")
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Observed vs Expected Counts: {categorical_column}",
+        x_title=categorical_column,
+        y_title="Count",
+        height=420,
+    )
+
+    fig.update_xaxes(type="category")
+
+    return fig
+
+
+def plot_chi_square_expected_heatmap(expected_table, title="Expected Frequency Heatmap"):
+    """
+    Plotly heatmap for expected frequencies.
+    """
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=expected_table.values,
+            x=expected_table.columns.astype(str),
+            y=expected_table.index.astype(str),
+            colorscale=[
+                [0, PLOT_COLORS["error"]],
+                [0.5, PLOT_COLORS["secondary"]],
+                [1, PLOT_COLORS["green"]],
+            ],
+            colorbar={"title": "Expected"},
+            hovertemplate="Row: %{y}<br>Column: %{x}<br>Expected: %{z:.4f}<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=title,
+        x_title="Column category",
+        y_title="Row category",
+        height=460,
+    )
+
+    return fig
+
+
+def plot_chi_square_observed_heatmap(contingency_table, title="Observed Frequency Heatmap"):
+    """
+    Plotly heatmap for observed frequencies.
+    """
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=contingency_table.values,
+            x=contingency_table.columns.astype(str),
+            y=contingency_table.index.astype(str),
+            colorscale=[
+                [0, PLOT_COLORS["card"]],
+                [0.5, PLOT_COLORS["secondary"]],
+                [1, PLOT_COLORS["primary"]],
+            ],
+            colorbar={"title": "Observed"},
+            hovertemplate="Row: %{y}<br>Column: %{x}<br>Observed: %{z}<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=title,
+        x_title="Column category",
+        y_title="Row category",
+        height=460,
+    )
+
+    return fig
+
+
+# ------------------------------------------------------------
+# Z-test assumption checks
+# ------------------------------------------------------------
+
+def check_one_sample_ztest_assumptions(
+    df,
+    numeric_column,
+    population_std,
+    alpha=0.05
+):
+    """
+    Checks assumptions for one-sample mean z-test.
+
+    Main assumptions:
+    - Numerical variable
+    - Known population standard deviation
+    - Population standard deviation > 0
+    - Large sample size or approximately normal data
+    - No extreme outliers
+    """
+
+    data = prepare_numeric_series(df, numeric_column)
+
+    checks = []
+
+    checks.append(
+        create_check(
+            "Data type",
+            "Numerical",
+            "success",
+            f"`{numeric_column}` contains valid numerical values."
+        )
+    )
+
+    if population_std <= 0:
+        checks.append(
+            create_check(
+                "Population standard deviation",
+                "Invalid value",
+                "error",
+                "Population standard deviation must be greater than 0."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Population standard deviation",
+                "Provided",
+                "success",
+                f"Known population standard deviation = {format_number(population_std)}."
+            )
+        )
+
+    sample_size_check = check_sample_size(len(data), "One-sample mean z-test")
+
+    checks.append(
+        create_check(
+            "Sample size",
+            sample_size_check["status"],
+            sample_size_check["status_type"],
+            sample_size_check["message"]
+        )
+    )
+
+    normality = run_shapiro_normality(data, alpha=alpha)
+
+    checks.append(
+        create_check(
+            "Normality",
+            normality["status"],
+            normality["status_type"],
+            normality["message"]
+        )
+    )
+
+    outliers = check_iqr_outliers(data)
+
+    checks.append(
+        create_check(
+            "Outliers",
+            outliers["status"],
+            outliers["status_type"],
+            outliers["message"]
+        )
+    )
+
+    error_count = sum(check["Status Type"] == "error" for check in checks)
+    warning_count = sum(check["Status Type"] == "warning" for check in checks)
+
+    if error_count > 0:
+        recommendation_title = "Do not run z-test yet"
+        recommendation_type = "error"
+        recommendation = "The selected setup does not satisfy the minimum requirements for a one-sample mean z-test."
+
+    elif len(data) < 30 and normality["status_type"] == "warning":
+        recommendation_title = "Consider t-test or non-parametric alternative"
+        recommendation_type = "warning"
+        recommendation = (
+            "Sample size is small and normality may be weak. "
+            "A one-sample t-test or non-parametric alternative may be more suitable."
+        )
+
+    elif warning_count > 0:
+        recommendation_title = "Use z-test carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "The z-test can be run, but check the warnings before interpreting the result."
+        )
+
+    else:
+        recommendation_title = "One-sample mean z-test is appropriate"
+        recommendation_type = "success"
+        recommendation = (
+            "The main assumptions look acceptable, assuming the population standard deviation is truly known."
+        )
+
+    return {
+        "test": "One-sample mean z-test",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "data": data,
+            "numeric_column": numeric_column,
+            "population_std": population_std,
+            "normality": normality,
+            "outliers": outliers,
+        }
+    }
+
+
+def check_two_sample_ztest_assumptions(
+    df,
+    numeric_column,
+    group_column,
+    group1,
+    group2,
+    population_std1,
+    population_std2,
+    alpha=0.05
+):
+    """
+    Checks assumptions for two-sample mean z-test.
+
+    Main assumptions:
+    - Numerical outcome
+    - Two independent groups
+    - Known population standard deviations for both groups
+    - Large sample sizes or approximately normal data
+    """
+
+    group1_data = pd.to_numeric(
+        df[df[group_column].astype(str) == str(group1)][numeric_column],
+        errors="coerce"
+    ).dropna()
+
+    group2_data = pd.to_numeric(
+        df[df[group_column].astype(str) == str(group2)][numeric_column],
+        errors="coerce"
+    ).dropna()
+
+    checks = []
+
+    checks.append(
+        create_check(
+            "Data structure",
+            "Two independent groups",
+            "success",
+            f"Comparing `{numeric_column}` between `{group1}` and `{group2}` using `{group_column}`."
+        )
+    )
+
+    if len(group1_data) < 2 or len(group2_data) < 2:
+        checks.append(
+            create_check(
+                "Group sample sizes",
+                "Too small",
+                "error",
+                "Each group must have at least 2 valid numerical values."
+            )
+        )
+
+        return {
+            "test": "Two-sample mean z-test",
+            "checks": checks,
+            "recommendation_title": "Do not run z-test yet",
+            "recommendation_type": "error",
+            "recommendation": "One or both groups do not have enough valid numerical values.",
+            "diagnostic_data": {
+                "group1_data": group1_data,
+                "group2_data": group2_data,
+                "group1": group1,
+                "group2": group2,
+                "numeric_column": numeric_column,
+                "group_column": group_column,
+            }
+        }
+
+    if population_std1 <= 0 or population_std2 <= 0:
+        checks.append(
+            create_check(
+                "Population standard deviations",
+                "Invalid value",
+                "error",
+                "Both population standard deviations must be greater than 0."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Population standard deviations",
+                "Provided",
+                "success",
+                f"Population std values provided: {format_number(population_std1)} and {format_number(population_std2)}."
+            )
+        )
+
+    group1_size = check_sample_size(len(group1_data), f"Group {group1}")
+    group2_size = check_sample_size(len(group2_data), f"Group {group2}")
+
+    checks.append(
+        create_check(
+            f"Sample size: {group1}",
+            group1_size["status"],
+            group1_size["status_type"],
+            group1_size["message"]
+        )
+    )
+
+    checks.append(
+        create_check(
+            f"Sample size: {group2}",
+            group2_size["status"],
+            group2_size["status_type"],
+            group2_size["message"]
+        )
+    )
+
+    normality_group1 = run_shapiro_normality(group1_data, alpha=alpha)
+    normality_group2 = run_shapiro_normality(group2_data, alpha=alpha)
+
+    checks.append(
+        create_check(
+            f"Normality: {group1}",
+            normality_group1["status"],
+            normality_group1["status_type"],
+            normality_group1["message"]
+        )
+    )
+
+    checks.append(
+        create_check(
+            f"Normality: {group2}",
+            normality_group2["status"],
+            normality_group2["status_type"],
+            normality_group2["message"]
+        )
+    )
+
+    outliers_group1 = check_iqr_outliers(group1_data)
+    outliers_group2 = check_iqr_outliers(group2_data)
+
+    checks.append(
+        create_check(
+            f"Outliers: {group1}",
+            outliers_group1["status"],
+            outliers_group1["status_type"],
+            outliers_group1["message"]
+        )
+    )
+
+    checks.append(
+        create_check(
+            f"Outliers: {group2}",
+            outliers_group2["status"],
+            outliers_group2["status_type"],
+            outliers_group2["message"]
+        )
+    )
+
+    error_count = sum(check["Status Type"] == "error" for check in checks)
+    warning_count = sum(check["Status Type"] == "warning" for check in checks)
+
+    normality_warning = (
+        normality_group1["status_type"] == "warning"
+        or normality_group2["status_type"] == "warning"
+    )
+
+    small_group = len(group1_data) < 30 or len(group2_data) < 30
+
+    if error_count > 0:
+        recommendation_title = "Do not run z-test yet"
+        recommendation_type = "error"
+        recommendation = "The selected setup does not satisfy the minimum requirements for a two-sample mean z-test."
+
+    elif normality_warning and small_group:
+        recommendation_title = "Consider independent t-test or Mann-Whitney U"
+        recommendation_type = "warning"
+        recommendation = (
+            "At least one group may not be normally distributed and at least one group is small. "
+            "Consider independent t-test or Mann-Whitney U depending on your assumptions."
+        )
+
+    elif warning_count > 0:
+        recommendation_title = "Use z-test carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "The z-test can be run, but check the warnings before interpreting the result."
+        )
+
+    else:
+        recommendation_title = "Two-sample mean z-test is appropriate"
+        recommendation_type = "success"
+        recommendation = (
+            "The main assumptions look acceptable, assuming both population standard deviations are truly known."
+        )
+
+    return {
+        "test": "Two-sample mean z-test",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "group1_data": group1_data,
+            "group2_data": group2_data,
+            "group1": group1,
+            "group2": group2,
+            "numeric_column": numeric_column,
+            "group_column": group_column,
+            "population_std1": population_std1,
+            "population_std2": population_std2,
+            "normality_group1": normality_group1,
+            "normality_group2": normality_group2,
+        }
+    }
+
+
+def check_one_proportion_ztest_assumptions(
+    df,
+    categorical_column,
+    success_category,
+    hypothesized_proportion,
+    alpha=0.05
+):
+    """
+    Checks assumptions for one-proportion z-test.
+
+    Main assumptions:
+    - Categorical/binary outcome
+    - Success category defined
+    - Hypothesized proportion between 0 and 1
+    - Expected success and failure counts large enough
+    """
+
+    data = df[categorical_column].dropna().astype(str)
+
+    checks = []
+
+    if data.empty:
+        checks.append(
+            create_check(
+                "Data availability",
+                "No valid data",
+                "error",
+                "Selected column has no valid values."
+            )
+        )
+
+        return {
+            "test": "One-proportion z-test",
+            "checks": checks,
+            "recommendation_title": "Do not run z-test yet",
+            "recommendation_type": "error",
+            "recommendation": "No valid data available.",
+            "diagnostic_data": {}
+        }
+
+    success_category = str(success_category)
+
+    n = len(data)
+    successes = int((data == success_category).sum())
+    failures = n - successes
+
+    checks.append(
+        create_check(
+            "Data type",
+            "Categorical outcome",
+            "success",
+            f"`{categorical_column}` is treated as categorical and `{success_category}` is treated as success."
+        )
+    )
+
+    if hypothesized_proportion <= 0 or hypothesized_proportion >= 1:
+        checks.append(
+            create_check(
+                "Hypothesized proportion",
+                "Invalid value",
+                "error",
+                "Hypothesized proportion must be between 0 and 1."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Hypothesized proportion",
+                "Valid",
+                "success",
+                f"Hypothesized proportion = {format_number(hypothesized_proportion)}."
+            )
+        )
+
+    expected_successes = n * hypothesized_proportion
+    expected_failures = n * (1 - hypothesized_proportion)
+
+    if successes == 0:
+        checks.append(
+            create_check(
+                "Observed successes",
+                "No successes",
+                "warning",
+                f"No observed success values found for `{success_category}`."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Observed successes",
+                "Successes detected",
+                "success",
+                f"Observed successes = {successes}; observed failures = {failures}."
+            )
+        )
+
+    if expected_successes >= 5 and expected_failures >= 5:
+        checks.append(
+            create_check(
+                "Normal approximation",
+                "Approximation acceptable",
+                "success",
+                f"Expected successes = {format_number(expected_successes)}, expected failures = {format_number(expected_failures)}."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Normal approximation",
+                "Approximation concern",
+                "warning",
+                f"Expected successes = {format_number(expected_successes)}, expected failures = {format_number(expected_failures)}. One or both are below 5."
+            )
+        )
+
+    checks.append(
+        create_check(
+            "Independence",
+            "User must verify",
+            "warning",
+            "Proportion z-tests assume independent observations. The app cannot fully verify this from the dataset alone."
+        )
+    )
+
+    error_count = sum(check["Status Type"] == "error" for check in checks)
+
+    if error_count > 0:
+        recommendation_title = "Do not run z-test yet"
+        recommendation_type = "error"
+        recommendation = "The selected setup does not satisfy the minimum requirements for a one-proportion z-test."
+
+    elif expected_successes < 5 or expected_failures < 5:
+        recommendation_title = "Use proportion z-test carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "Normal approximation may be weak because expected successes or failures are below 5. "
+            "Consider exact/binomial methods if required."
+        )
+
+    else:
+        recommendation_title = "One-proportion z-test is appropriate"
+        recommendation_type = "success"
+        recommendation = "The main normal approximation requirements look acceptable."
+
+    return {
+        "test": "One-proportion z-test",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "categorical_column": categorical_column,
+            "success_category": success_category,
+            "n": n,
+            "successes": successes,
+            "failures": failures,
+            "expected_successes": expected_successes,
+            "expected_failures": expected_failures,
+        }
+    }
+
+
+def check_two_proportion_ztest_assumptions(
+    df,
+    outcome_column,
+    success_category,
+    group_column,
+    group1,
+    group2,
+    alpha=0.05
+):
+    """
+    Checks assumptions for two-proportion z-test.
+
+    Main assumptions:
+    - Binary/categorical outcome
+    - Two independent groups
+    - Each group has enough successes and failures
+    """
+
+    clean_df = df[[outcome_column, group_column]].copy()
+    clean_df = clean_df.dropna()
+
+    clean_df[outcome_column] = clean_df[outcome_column].astype(str)
+    clean_df[group_column] = clean_df[group_column].astype(str)
+
+    group1 = str(group1)
+    group2 = str(group2)
+    success_category = str(success_category)
+
+    group1_df = clean_df[clean_df[group_column] == group1]
+    group2_df = clean_df[clean_df[group_column] == group2]
+
+    n1 = len(group1_df)
+    n2 = len(group2_df)
+
+    checks = []
+
+    checks.append(
+        create_check(
+            "Data structure",
+            "Categorical outcome + two groups",
+            "success",
+            f"Comparing success proportion of `{success_category}` between `{group1}` and `{group2}`."
+        )
+    )
+
+    if n1 == 0 or n2 == 0:
+        checks.append(
+            create_check(
+                "Group sample sizes",
+                "Missing group data",
+                "error",
+                "Both selected groups must contain data."
+            )
+        )
+
+        return {
+            "test": "Two-proportion z-test",
+            "checks": checks,
+            "recommendation_title": "Do not run z-test yet",
+            "recommendation_type": "error",
+            "recommendation": "One or both groups have no data.",
+            "diagnostic_data": {}
+        }
+
+    success1 = int((group1_df[outcome_column] == success_category).sum())
+    success2 = int((group2_df[outcome_column] == success_category).sum())
+
+    failure1 = n1 - success1
+    failure2 = n2 - success2
+
+    checks.append(
+        create_check(
+            f"Sample size: {group1}",
+            "Group detected",
+            "success",
+            f"{group1}: n = {n1}, successes = {success1}, failures = {failure1}."
+        )
+    )
+
+    checks.append(
+        create_check(
+            f"Sample size: {group2}",
+            "Group detected",
+            "success",
+            f"{group2}: n = {n2}, successes = {success2}, failures = {failure2}."
+        )
+    )
+
+    low_cells = []
+
+    if success1 < 5:
+        low_cells.append(f"{group1} successes")
+    if failure1 < 5:
+        low_cells.append(f"{group1} failures")
+    if success2 < 5:
+        low_cells.append(f"{group2} successes")
+    if failure2 < 5:
+        low_cells.append(f"{group2} failures")
+
+    if len(low_cells) == 0:
+        checks.append(
+            create_check(
+                "Normal approximation",
+                "Approximation acceptable",
+                "success",
+                "Both groups have at least 5 successes and 5 failures."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Normal approximation",
+                "Approximation concern",
+                "warning",
+                "Some counts are below 5: " + ", ".join(low_cells) + "."
+            )
+        )
+
+    checks.append(
+        create_check(
+            "Independence",
+            "User must verify",
+            "warning",
+            "Two-proportion z-test assumes independent groups and independent observations."
+        )
+    )
+
+    if len(low_cells) > 0:
+        recommendation_title = "Use two-proportion z-test carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "Normal approximation may be weak because some success/failure counts are below 5. "
+            "Consider exact methods if required."
+        )
+
+    else:
+        recommendation_title = "Two-proportion z-test is appropriate"
+        recommendation_type = "success"
+        recommendation = "The main normal approximation requirements look acceptable."
+
+    return {
+        "test": "Two-proportion z-test",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "outcome_column": outcome_column,
+            "success_category": success_category,
+            "group_column": group_column,
+            "group1": group1,
+            "group2": group2,
+            "n1": n1,
+            "n2": n2,
+            "success1": success1,
+            "success2": success2,
+            "failure1": failure1,
+            "failure2": failure2,
+        }
+    }
+
+
+def plot_one_proportion_counts(diagnostic_data):
+    """
+    Plotly bar chart for one-proportion success/failure counts.
+    """
+
+    labels = ["Success", "Failure"]
+    values = [
+        diagnostic_data["successes"],
+        diagnostic_data["failures"]
+    ]
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=values,
+            marker_color=[PLOT_COLORS["green"], PLOT_COLORS["secondary"]],
+            hovertemplate="Category: %{x}<br>Count: %{y}<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Success vs Failure Counts: {diagnostic_data['categorical_column']}",
+        x_title="Outcome",
+        y_title="Count",
+        height=400,
+    )
+
+    fig.update_xaxes(type="category")
+
+    return fig
+
+
+def plot_two_proportion_counts(diagnostic_data):
+    """
+    Plotly grouped bar chart for two-proportion success/failure counts.
+    """
+
+    groups = [
+        diagnostic_data["group1"],
+        diagnostic_data["group2"]
+    ]
+
+    successes = [
+        diagnostic_data["success1"],
+        diagnostic_data["success2"]
+    ]
+
+    failures = [
+        diagnostic_data["failure1"],
+        diagnostic_data["failure2"]
+    ]
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Bar(
+            x=groups,
+            y=successes,
+            name="Success",
+            marker_color=PLOT_COLORS["green"],
+            hovertemplate="Group: %{x}<br>Successes: %{y}<extra></extra>",
+        )
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=groups,
+            y=failures,
+            name="Failure",
+            marker_color=PLOT_COLORS["secondary"],
+            hovertemplate="Group: %{x}<br>Failures: %{y}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(barmode="group")
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Success/Failure Counts by {diagnostic_data['group_column']}",
+        x_title=diagnostic_data["group_column"],
+        y_title="Count",
+        height=420,
+    )
+
+    fig.update_xaxes(type="category")
+
+    return fig

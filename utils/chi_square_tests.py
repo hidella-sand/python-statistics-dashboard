@@ -1,17 +1,114 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import stats
+import plotly.graph_objects as go
+
+
+PLOT_COLORS = {
+    "primary": "#7C5CFF",
+    "secondary": "#A78BFA",
+    "blue": "#60A5FA",
+    "green": "#00B894",
+    "warning": "#F59E0B",
+    "error": "#EF4444",
+    "bg": "#181A1F",
+    "card": "#242529",
+    "grid": "#3A3B40",
+    "text": "#F5F5F5",
+    "muted": "#A3A3A3",
+}
+
+
+def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
+    """
+    Applies the dark dashboard theme to Plotly figures.
+    """
+
+    fig.update_layout(
+        title={
+            "text": title if title else "",
+            "x": 0.02,
+            "xanchor": "left",
+            "font": {"size": 18, "color": PLOT_COLORS["text"]},
+        },
+        paper_bgcolor=PLOT_COLORS["bg"],
+        plot_bgcolor=PLOT_COLORS["card"],
+        font={"color": PLOT_COLORS["text"], "family": "Arial"},
+        height=height,
+        margin={"l": 70, "r": 35, "t": 70, "b": 65},
+        hovermode="closest",
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1,
+            "font": {"color": PLOT_COLORS["muted"]},
+        },
+    )
+
+    fig.update_xaxes(
+        title_text=x_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    fig.update_yaxes(
+        title_text=y_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    return fig
 
 
 def format_number(value):
     """
-    Formats numbers nicely for tables.
+    Formats numbers nicely for tables and interpretation text.
     """
+
     try:
-        return round(float(value), 5)
+        if pd.isna(value):
+            return "N/A"
+
+        value = float(value)
+
+        if value == 0:
+            return "0"
+
+        if abs(value) < 0.00001:
+            return f"{value:.2e}"
+
+        return round(value, 5)
+
     except Exception:
         return value
+
+
+def format_p_value(p_value):
+    """
+    Formats p-values cleanly.
+    """
+
+    try:
+        p_value = float(p_value)
+
+        if p_value == 0:
+            return "< 1e-300"
+
+        if p_value < 0.00001:
+            return f"{p_value:.2e}"
+
+        return round(p_value, 5)
+
+    except Exception:
+        return p_value
 
 
 def interpret_p_value(p_value, alpha=0.05):
@@ -21,8 +118,8 @@ def interpret_p_value(p_value, alpha=0.05):
 
     if p_value < alpha:
         return "Reject H0", "There is a statistically significant result."
-    else:
-        return "Fail to Reject H0", "There is not enough evidence for a statistically significant result."
+
+    return "Fail to Reject H0", "There is not enough evidence for a statistically significant result."
 
 
 def prepare_categorical_data(df, columns):
@@ -32,10 +129,10 @@ def prepare_categorical_data(df, columns):
 
     clean_df = df[columns].copy()
 
+    clean_df = clean_df.dropna()
+
     for col in columns:
         clean_df[col] = clean_df[col].astype(str)
-
-    clean_df = clean_df.dropna()
 
     if clean_df.empty:
         raise ValueError("No valid data available after removing missing values.")
@@ -63,7 +160,9 @@ def run_chi_square_independence(df, column1, column2, alpha=0.05):
 
     observed_table = pd.crosstab(clean_df[column1], clean_df[column2])
 
-    chi2_statistic, p_value, dof, expected_values = stats.chi2_contingency(observed_table)
+    chi2_statistic, p_value, dof, expected_values = stats.chi2_contingency(
+        observed_table
+    )
 
     expected_table = pd.DataFrame(
         expected_values,
@@ -101,7 +200,7 @@ def run_chi_square_independence(df, column1, column2, alpha=0.05):
         "Low Expected Frequency Cells": low_expected_count,
         "Total Cells": total_cells,
         "Observed Table": observed_table,
-        "Expected Table": expected_table
+        "Expected Table": expected_table,
     }
 
     return result
@@ -109,39 +208,44 @@ def run_chi_square_independence(df, column1, column2, alpha=0.05):
 
 def plot_chi_square_independence(df, column1, column2):
     """
-    Heatmap-style plot for observed contingency table.
+    Creates a modern Plotly heatmap for the observed contingency table.
     """
 
     clean_df = prepare_categorical_data(df, [column1, column2])
     observed_table = pd.crosstab(clean_df[column1], clean_df[column2])
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=observed_table.values,
+            x=observed_table.columns.astype(str),
+            y=observed_table.index.astype(str),
+            colorscale=[
+                [0, PLOT_COLORS["card"]],
+                [0.5, PLOT_COLORS["secondary"]],
+                [1, PLOT_COLORS["primary"]],
+            ],
+            text=observed_table.values,
+            texttemplate="%{text}",
+            textfont={"color": PLOT_COLORS["text"], "size": 14},
+            colorbar={"title": "Count"},
+            hovertemplate=(
+                f"{column1}: %{{y}}<br>"
+                f"{column2}: %{{x}}<br>"
+                "Observed Count: %{z}<extra></extra>"
+            ),
+        )
+    )
 
-    image = ax.imshow(observed_table.values)
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Observed Counts: {column1} vs {column2}",
+        x_title=column2,
+        y_title=column1,
+        height=520,
+    )
 
-    ax.set_xticks(np.arange(len(observed_table.columns)))
-    ax.set_yticks(np.arange(len(observed_table.index)))
-
-    ax.set_xticklabels(observed_table.columns)
-    ax.set_yticklabels(observed_table.index)
-
-    ax.set_xlabel(column2)
-    ax.set_ylabel(column1)
-    ax.set_title(f"Observed Counts: {column1} vs {column2}", fontsize=12)
-
-    plt.setp(ax.get_xticklabels(), rotation=25, ha="right")
-
-    for i in range(len(observed_table.index)):
-        for j in range(len(observed_table.columns)):
-            ax.text(
-                j,
-                i,
-                observed_table.values[i, j],
-                ha="center",
-                va="center"
-            )
-
-    fig.colorbar(image, ax=ax)
+    fig.update_xaxes(type="category")
+    fig.update_yaxes(type="category")
 
     return fig
 
@@ -162,7 +266,7 @@ def get_independence_interpretation(result):
     )
 
     interpretation.append(
-        f"The p-value is {format_number(result['p-value'])}, and alpha is {result['Alpha']}."
+        f"The p-value is {format_p_value(result['p-value'])}, and alpha is {result['Alpha']}."
     )
 
     if result["Decision"] == "Reject H0":
@@ -209,7 +313,12 @@ def get_independence_interpretation(result):
 # Chi-square Goodness-of-Fit Test
 # ------------------------------------------------------------
 
-def run_chi_square_goodness_of_fit(df, categorical_column, expected_frequencies=None, alpha=0.05):
+def run_chi_square_goodness_of_fit(
+    df,
+    categorical_column,
+    expected_frequencies=None,
+    alpha=0.05
+):
     """
     Chi-square goodness-of-fit test.
 
@@ -225,7 +334,11 @@ def run_chi_square_goodness_of_fit(df, categorical_column, expected_frequencies=
         raise ValueError("Goodness-of-fit test needs at least two categories.")
 
     if expected_frequencies is None:
-        expected_values = np.repeat(observed_counts.sum() / len(observed_counts), len(observed_counts))
+        expected_values = np.repeat(
+            observed_counts.sum() / len(observed_counts),
+            len(observed_counts)
+        )
+
     else:
         expected_values = []
 
@@ -237,8 +350,9 @@ def run_chi_square_goodness_of_fit(df, categorical_column, expected_frequencies=
         if np.any(expected_values <= 0):
             raise ValueError("All expected frequencies must be greater than 0.")
 
-        # Scale expected values to match total observed count
-        expected_values = expected_values * (observed_counts.sum() / expected_values.sum())
+        expected_values = expected_values * (
+            observed_counts.sum() / expected_values.sum()
+        )
 
     chi2_statistic, p_value = stats.chisquare(
         f_obs=observed_counts.values,
@@ -252,7 +366,7 @@ def run_chi_square_goodness_of_fit(df, categorical_column, expected_frequencies=
     observed_expected_table = pd.DataFrame({
         "Category": observed_counts.index,
         "Observed Frequency": observed_counts.values,
-        "Expected Frequency": expected_values
+        "Expected Frequency": expected_values,
     })
 
     low_expected_count = int((expected_values < 5).sum())
@@ -269,7 +383,7 @@ def run_chi_square_goodness_of_fit(df, categorical_column, expected_frequencies=
         "Decision": decision,
         "Conclusion": conclusion,
         "Low Expected Frequency Cells": low_expected_count,
-        "Observed Expected Table": observed_expected_table
+        "Observed Expected Table": observed_expected_table,
     }
 
     return result
@@ -277,7 +391,7 @@ def run_chi_square_goodness_of_fit(df, categorical_column, expected_frequencies=
 
 def plot_goodness_of_fit(result):
     """
-    Bar chart comparing observed and expected frequencies.
+    Creates a modern Plotly grouped bar chart comparing observed and expected frequencies.
     """
 
     table = result["Observed Expected Table"]
@@ -286,21 +400,39 @@ def plot_goodness_of_fit(result):
     observed = table["Observed Frequency"].values
     expected = table["Expected Frequency"].values
 
-    x = np.arange(len(categories))
-    width = 0.35
+    fig = go.Figure()
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig.add_trace(
+        go.Bar(
+            x=categories,
+            y=observed,
+            name="Observed",
+            marker_color=PLOT_COLORS["primary"],
+            hovertemplate="Category: %{x}<br>Observed: %{y}<extra></extra>",
+        )
+    )
 
-    ax.bar(x - width / 2, observed, width, label="Observed")
-    ax.bar(x + width / 2, expected, width, label="Expected")
+    fig.add_trace(
+        go.Bar(
+            x=categories,
+            y=expected,
+            name="Expected",
+            marker_color=PLOT_COLORS["secondary"],
+            hovertemplate="Category: %{x}<br>Expected: %{y:.4f}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"Observed vs Expected: {result['Categorical Column']}", fontsize=12)
-    ax.set_xlabel("Category")
-    ax.set_ylabel("Frequency")
-    ax.set_xticks(x)
-    ax.set_xticklabels(categories, rotation=25, ha="right")
-    ax.grid(True, axis="y", alpha=0.3)
-    ax.legend()
+    fig.update_layout(barmode="group")
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Observed vs Expected: {result['Categorical Column']}",
+        x_title="Category",
+        y_title="Frequency",
+        height=500,
+    )
+
+    fig.update_xaxes(type="category")
 
     return fig
 
@@ -321,7 +453,7 @@ def get_goodness_of_fit_interpretation(result):
     )
 
     interpretation.append(
-        f"The p-value is {format_number(result['p-value'])}, and alpha is {result['Alpha']}."
+        f"The p-value is {format_p_value(result['p-value'])}, and alpha is {result['Alpha']}."
     )
 
     if result["Decision"] == "Reject H0":
@@ -367,7 +499,7 @@ def create_chi_square_result_table(result):
         "Conclusion",
         "Observed Table",
         "Expected Table",
-        "Observed Expected Table"
+        "Observed Expected Table",
     ]
 
     rows = []
@@ -376,9 +508,14 @@ def create_chi_square_result_table(result):
         if key in hidden_keys:
             continue
 
+        if key == "p-value":
+            formatted_value = format_p_value(value)
+        else:
+            formatted_value = format_number(value)
+
         rows.append({
             "Metric": key,
-            "Value": format_number(value)
+            "Value": formatted_value,
         })
 
     return pd.DataFrame(rows)

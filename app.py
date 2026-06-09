@@ -128,7 +128,18 @@ from utils.assumption_checks import (
     plot_anova_group_boxplot,
     plot_anova_cell_boxplot,
     plot_anova_residuals_qq,
-    plot_anova_residual_histogram
+    plot_anova_residual_histogram,
+    check_chi_square_gof_assumptions,
+    check_chi_square_independence_assumptions,
+    plot_chi_square_gof_bars,
+    plot_chi_square_expected_heatmap,
+    plot_chi_square_observed_heatmap,
+    check_one_sample_ztest_assumptions,
+    check_two_sample_ztest_assumptions,
+    check_one_proportion_ztest_assumptions,
+    check_two_proportion_ztest_assumptions,
+    plot_one_proportion_counts,
+    plot_two_proportion_counts,
 )
 
 from utils.visualizations import (
@@ -166,6 +177,9 @@ from utils.nonparametric_tests import (
     create_result_table,
     get_nonparametric_interpretation
 )
+
+
+
 # ------------------------------------------------------------
 # Page configuration
 # ------------------------------------------------------------
@@ -248,6 +262,24 @@ def clear_analysis_state_for_new_upload():
 
 
 
+
+
+def render_distribution_figure(fig, key):
+    """
+    Renders Plotly figures using st.plotly_chart.
+    Falls back to st.pyplot for old Matplotlib figures.
+    """
+
+    if hasattr(fig, "to_plotly_json"):
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            key=key
+        )
+    else:
+        st.pyplot(fig)
+
+
 def render_assumption_panel(assumption_result, panel_key):
     """
     Renders a reusable assumption check panel.
@@ -270,6 +302,9 @@ def render_assumption_panel(assumption_result, panel_key):
 
     with st.expander("View Diagnostic Plots", expanded=False):
 
+        # ----------------------------------------------------
+        # One-sample t-test
+        # ----------------------------------------------------
         if assumption_result["test"] == "One-sample t-test":
             data = diagnostic_data["data"]
 
@@ -281,15 +316,28 @@ def render_assumption_panel(assumption_result, panel_key):
                     title="Distribution of Selected Variable",
                     x_label="Values"
                 )
-                st.plotly_chart(fig_hist, use_container_width=True)
+
+                st.plotly_chart(
+                    fig_hist,
+                    use_container_width=True,
+                    key=f"{panel_key}_one_sample_hist"
+                )
 
             with plot_col2:
                 fig_qq = plot_assumption_qq(
                     data,
                     title="Q-Q Plot for Normality"
                 )
-                st.plotly_chart(fig_qq, use_container_width=True)
 
+                st.plotly_chart(
+                    fig_qq,
+                    use_container_width=True,
+                    key=f"{panel_key}_one_sample_qq"
+                )
+
+        # ----------------------------------------------------
+        # Independent two-sample t-test
+        # ----------------------------------------------------
         elif assumption_result["test"] == "Independent two-sample t-test":
             group1_data = diagnostic_data["group1_data"]
             group2_data = diagnostic_data["group2_data"]
@@ -304,7 +352,12 @@ def render_assumption_panel(assumption_result, panel_key):
                 group2,
                 numeric_column
             )
-            st.plotly_chart(fig_box, use_container_width=True)
+
+            st.plotly_chart(
+                fig_box,
+                use_container_width=True,
+                key=f"{panel_key}_independent_boxplot"
+            )
 
             plot_col1, plot_col2 = st.columns(2)
 
@@ -313,15 +366,28 @@ def render_assumption_panel(assumption_result, panel_key):
                     group1_data,
                     title=f"Q-Q Plot: {group1}"
                 )
-                st.plotly_chart(fig_qq_1, use_container_width=True)
+
+                st.plotly_chart(
+                    fig_qq_1,
+                    use_container_width=True,
+                    key=f"{panel_key}_independent_qq_group1"
+                )
 
             with plot_col2:
                 fig_qq_2 = plot_assumption_qq(
                     group2_data,
                     title=f"Q-Q Plot: {group2}"
                 )
-                st.plotly_chart(fig_qq_2, use_container_width=True)
 
+                st.plotly_chart(
+                    fig_qq_2,
+                    use_container_width=True,
+                    key=f"{panel_key}_independent_qq_group2"
+                )
+
+        # ----------------------------------------------------
+        # Paired t-test
+        # ----------------------------------------------------
         elif assumption_result["test"] == "Paired t-test":
             differences = diagnostic_data["differences"]
 
@@ -329,17 +395,28 @@ def render_assumption_panel(assumption_result, panel_key):
 
             with plot_col1:
                 fig_diff = plot_paired_differences(differences)
-                st.plotly_chart(fig_diff, use_container_width=True)
+
+                st.plotly_chart(
+                    fig_diff,
+                    use_container_width=True,
+                    key=f"{panel_key}_paired_differences_hist"
+                )
 
             with plot_col2:
                 fig_qq = plot_assumption_qq(
                     differences,
                     title="Q-Q Plot of Paired Differences"
                 )
-                st.plotly_chart(fig_qq, use_container_width=True)
 
+                st.plotly_chart(
+                    fig_qq,
+                    use_container_width=True,
+                    key=f"{panel_key}_paired_differences_qq"
+                )
 
-
+        # ----------------------------------------------------
+        # One-way ANOVA
+        # ----------------------------------------------------
         elif assumption_result["test"] == "One-way ANOVA":
             clean_df = diagnostic_data["clean_df"]
             numeric_column = diagnostic_data["numeric_column"]
@@ -351,21 +428,39 @@ def render_assumption_panel(assumption_result, panel_key):
                 numeric_column,
                 factor_column
             )
-            st.plotly_chart(fig_box, use_container_width=True)
+
+            st.plotly_chart(
+                fig_box,
+                use_container_width=True,
+                key=f"{panel_key}_one_way_anova_group_boxplot"
+            )
 
             plot_col1, plot_col2 = st.columns(2)
 
             with plot_col1:
                 fig_resid_hist = plot_anova_residual_histogram(residuals)
-                st.plotly_chart(fig_resid_hist, use_container_width=True)
+
+                st.plotly_chart(
+                    fig_resid_hist,
+                    use_container_width=True,
+                    key=f"{panel_key}_one_way_anova_residual_hist"
+                )
 
             with plot_col2:
                 fig_resid_qq = plot_anova_residuals_qq(
                     residuals,
                     title="Q-Q Plot of One-way ANOVA Residuals"
                 )
-                st.plotly_chart(fig_resid_qq, use_container_width=True)
 
+                st.plotly_chart(
+                    fig_resid_qq,
+                    use_container_width=True,
+                    key=f"{panel_key}_one_way_anova_residual_qq"
+                )
+
+        # ----------------------------------------------------
+        # Two-way ANOVA
+        # ----------------------------------------------------
         elif assumption_result["test"] == "Two-way ANOVA":
             clean_df = diagnostic_data["clean_df"]
             numeric_column = diagnostic_data["numeric_column"]
@@ -377,21 +472,101 @@ def render_assumption_panel(assumption_result, panel_key):
                 numeric_column,
                 cell_column
             )
-            st.plotly_chart(fig_box, use_container_width=True)
+
+            st.plotly_chart(
+                fig_box,
+                use_container_width=True,
+                key=f"{panel_key}_two_way_anova_cell_boxplot"
+            )
 
             plot_col1, plot_col2 = st.columns(2)
 
             with plot_col1:
                 fig_resid_hist = plot_anova_residual_histogram(residuals)
-                st.plotly_chart(fig_resid_hist, use_container_width=True)
+
+                st.plotly_chart(
+                    fig_resid_hist,
+                    use_container_width=True,
+                    key=f"{panel_key}_two_way_anova_residual_hist"
+                )
 
             with plot_col2:
                 fig_resid_qq = plot_anova_residuals_qq(
                     residuals,
                     title="Q-Q Plot of Two-way ANOVA Residuals"
                 )
-                st.plotly_chart(fig_resid_qq, use_container_width=True)
-        
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True,
+                    key="chi_square_gof_result_plot"
+                )       
+
+        # ----------------------------------------------------
+        # Chi-square goodness-of-fit
+        # ----------------------------------------------------
+        elif assumption_result["test"] == "Chi-square goodness-of-fit":
+            observed_counts = diagnostic_data["observed_counts"]
+            expected_counts = diagnostic_data["expected_counts"]
+            categorical_column = diagnostic_data["categorical_column"]
+
+            fig = plot_chi_square_gof_bars(
+                observed_counts,
+                expected_counts,
+                categorical_column
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                key="chi_square_independence_result_plot"
+            )
+
+            st.write("#### Observed vs Expected Table")
+
+            st.dataframe(
+                diagnostic_data["expected_table"],
+                use_container_width=True
+            )
+
+        # ----------------------------------------------------
+        # Chi-square independence
+        # ----------------------------------------------------
+        elif assumption_result["test"] == "Chi-square independence":
+            contingency_table = diagnostic_data["contingency_table"]
+            expected_table = diagnostic_data["expected_table"]
+
+            plot_col1, plot_col2 = st.columns(2)
+
+            with plot_col1:
+                fig_observed = plot_chi_square_observed_heatmap(
+                    contingency_table,
+                    title="Observed Frequency Heatmap"
+                )
+
+                st.plotly_chart(
+                    fig_observed,
+                    use_container_width=True,
+                    key=f"{panel_key}_chi_square_observed_heatmap"
+                )
+
+            with plot_col2:
+                fig_expected = plot_chi_square_expected_heatmap(
+                    expected_table,
+                    title="Expected Frequency Heatmap"
+                )
+
+                st.plotly_chart(
+                    fig_expected,
+                    use_container_width=True,
+                    key=f"{panel_key}_chi_square_expected_heatmap"
+                )
+
+            st.write("#### Observed Contingency Table")
+            st.dataframe(contingency_table, use_container_width=True)
+
+            st.write("#### Expected Frequency Table")
+            st.dataframe(expected_table, use_container_width=True)
 
 # ------------------------------------------------------------
 # Header
@@ -2746,6 +2921,7 @@ if st.session_state.step == "chi_square":
 
 
 
+
 # ------------------------------------------------------------
 # STEP 10: Z-Tests
 # ------------------------------------------------------------
@@ -2810,57 +2986,95 @@ if st.session_state.step == "z_tests":
                 key="one_sample_z_numeric"
             )
 
-            sample_mean_default = float(pd.to_numeric(selected_df[numeric_column], errors="coerce").mean())
-            sample_std_default = float(pd.to_numeric(selected_df[numeric_column], errors="coerce").std())
+            clean_numeric_data = pd.to_numeric(
+                selected_df[numeric_column],
+                errors="coerce"
+            ).dropna()
 
-            hypothesized_mean = st.number_input(
-                "Enter hypothesized mean",
-                value=sample_mean_default,
-                key="one_sample_z_mean"
-            )
+            if clean_numeric_data.empty:
+                st.warning("The selected numerical column has no valid numeric values.")
 
-            population_std = st.number_input(
-                "Enter known population standard deviation",
-                min_value=0.0001,
-                value=sample_std_default if sample_std_default > 0 else 1.0,
-                key="one_sample_z_std"
-            )
+            else:
+                sample_mean_default = float(clean_numeric_data.mean())
+                sample_std_default = float(clean_numeric_data.std())
 
-            if st.button("Run One-sample Mean Z-Test", type="primary"):
+                if pd.isna(sample_std_default) or sample_std_default <= 0:
+                    sample_std_default = 1.0
+
+                hypothesized_mean = st.number_input(
+                    "Enter hypothesized mean",
+                    value=sample_mean_default,
+                    key="one_sample_z_mean"
+                )
+
+                population_std = st.number_input(
+                    "Enter known population standard deviation",
+                    min_value=0.0001,
+                    value=sample_std_default,
+                    key="one_sample_z_std"
+                )
+
                 try:
-                    result = run_one_sample_ztest(
+                    assumption_result = check_one_sample_ztest_assumptions(
                         selected_df,
                         numeric_column,
-                        hypothesized_mean,
                         population_std,
                         alpha
                     )
 
-                    result_table = create_ztest_result_table(result)
-                    interpretation = get_ztest_interpretation(result)
-
-                    plot_col, interpretation_col = st.columns([1.2, 1])
-
-                    with plot_col:
-                        st.write("#### Visualization")
-                        fig = plot_one_sample_ztest(
-                            selected_df,
-                            numeric_column,
-                            hypothesized_mean
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-
-                    with interpretation_col:
-                        with st.container(border=True):
-                            st.write("#### Interpretation")
-                            for line in interpretation:
-                                st.write(f"- {line}")
-
-                    st.write("#### Result Table")
-                    st.dataframe(result_table, use_container_width=True)
+                    render_assumption_panel(
+                        assumption_result,
+                        panel_key="one_sample_ztest"
+                    )
 
                 except Exception as error:
                     st.error(error)
+                    assumption_result = None
+
+                if st.button(
+                    "Run One-sample Mean Z-Test",
+                    type="primary",
+                    key="run_one_sample_mean_ztest"
+                ):
+                    try:
+                        result = run_one_sample_ztest(
+                            selected_df,
+                            numeric_column,
+                            hypothesized_mean,
+                            population_std,
+                            alpha
+                        )
+
+                        result_table = create_ztest_result_table(result)
+                        interpretation = get_ztest_interpretation(result)
+
+                        plot_col, interpretation_col = st.columns([1.2, 1])
+
+                        with plot_col:
+                            st.write("#### Visualization")
+                            fig = plot_one_sample_ztest(
+                                selected_df,
+                                numeric_column,
+                                hypothesized_mean
+                            )
+
+                            st.plotly_chart(
+                                fig,
+                                use_container_width=True,
+                                key="one_sample_ztest_result_plot"
+                            )
+
+                        with interpretation_col:
+                            with st.container(border=True):
+                                st.write("#### Interpretation")
+                                for line in interpretation:
+                                    st.write(f"- {line}")
+
+                        st.write("#### Result Table")
+                        st.dataframe(result_table, use_container_width=True)
+
+                    except Exception as error:
+                        st.error(error)
 
     # --------------------------------------------------------
     # Two-sample mean z-test
@@ -2900,45 +3114,63 @@ if st.session_state.step == "z_tests":
                     key="two_sample_z_group_col"
                 )
 
-                group_values = selected_df[group_column].dropna().astype(str).unique().tolist()
-
-                group1 = st.selectbox(
-                    "Choose Group 1",
-                    group_values,
-                    key="two_sample_z_group1"
+                group_values = (
+                    selected_df[group_column]
+                    .dropna()
+                    .astype(str)
+                    .unique()
+                    .tolist()
                 )
 
-                group2 = st.selectbox(
-                    "Choose Group 2",
-                    group_values,
-                    key="two_sample_z_group2"
-                )
+                if len(group_values) < 2:
+                    st.warning("The selected grouping column must have at least two groups.")
 
-                default_std = float(pd.to_numeric(selected_df[numeric_column], errors="coerce").std())
+                else:
+                    group1 = st.selectbox(
+                        "Choose Group 1",
+                        group_values,
+                        key="two_sample_z_group1"
+                    )
 
-                population_std1 = st.number_input(
-                    "Enter known population standard deviation for Group 1",
-                    min_value=0.0001,
-                    value=default_std if default_std > 0 else 1.0,
-                    key="two_sample_z_std1"
-                )
+                    group2_default_index = 1 if len(group_values) > 1 else 0
 
-                population_std2 = st.number_input(
-                    "Enter known population standard deviation for Group 2",
-                    min_value=0.0001,
-                    value=default_std if default_std > 0 else 1.0,
-                    key="two_sample_z_std2"
-                )
+                    group2 = st.selectbox(
+                        "Choose Group 2",
+                        group_values,
+                        index=group2_default_index,
+                        key="two_sample_z_group2"
+                    )
 
-                if group1 == group2:
-                    st.warning("Group 1 and Group 2 must be different.")
+                    clean_numeric_data = pd.to_numeric(
+                        selected_df[numeric_column],
+                        errors="coerce"
+                    ).dropna()
 
-                if st.button("Run Two-sample Mean Z-Test", type="primary"):
-                    try:
-                        if group1 == group2:
-                            st.error("Please select two different groups.")
-                        else:
-                            result = run_two_sample_ztest(
+                    default_std = float(clean_numeric_data.std())
+
+                    if pd.isna(default_std) or default_std <= 0:
+                        default_std = 1.0
+
+                    population_std1 = st.number_input(
+                        "Enter known population standard deviation for Group 1",
+                        min_value=0.0001,
+                        value=default_std,
+                        key="two_sample_z_std1"
+                    )
+
+                    population_std2 = st.number_input(
+                        "Enter known population standard deviation for Group 2",
+                        min_value=0.0001,
+                        value=default_std,
+                        key="two_sample_z_std2"
+                    )
+
+                    if group1 == group2:
+                        st.warning("Group 1 and Group 2 must be different.")
+
+                    else:
+                        try:
+                            assumption_result = check_two_sample_ztest_assumptions(
                                 selected_df,
                                 numeric_column,
                                 group_column,
@@ -2949,33 +3181,68 @@ if st.session_state.step == "z_tests":
                                 alpha
                             )
 
-                            result_table = create_ztest_result_table(result)
-                            interpretation = get_ztest_interpretation(result)
+                            render_assumption_panel(
+                                assumption_result,
+                                panel_key="two_sample_ztest"
+                            )
 
-                            plot_col, interpretation_col = st.columns([1.2, 1])
+                        except Exception as error:
+                            st.error(error)
+                            assumption_result = None
 
-                            with plot_col:
-                                st.write("#### Visualization")
-                                fig = plot_two_sample_ztest(
+                    if st.button(
+                        "Run Two-sample Mean Z-Test",
+                        type="primary",
+                        key="run_two_sample_mean_ztest"
+                    ):
+                        try:
+                            if group1 == group2:
+                                st.error("Please select two different groups.")
+
+                            else:
+                                result = run_two_sample_ztest(
                                     selected_df,
                                     numeric_column,
                                     group_column,
                                     group1,
-                                    group2
+                                    group2,
+                                    population_std1,
+                                    population_std2,
+                                    alpha
                                 )
-                                st.plotly_chart(fig, use_container_width=True)
 
-                            with interpretation_col:
-                                with st.container(border=True):
-                                    st.write("#### Interpretation")
-                                    for line in interpretation:
-                                        st.write(f"- {line}")
+                                result_table = create_ztest_result_table(result)
+                                interpretation = get_ztest_interpretation(result)
 
-                            st.write("#### Result Table")
-                            st.dataframe(result_table, use_container_width=True)
+                                plot_col, interpretation_col = st.columns([1.2, 1])
 
-                    except Exception as error:
-                        st.error(error)
+                                with plot_col:
+                                    st.write("#### Visualization")
+                                    fig = plot_two_sample_ztest(
+                                        selected_df,
+                                        numeric_column,
+                                        group_column,
+                                        group1,
+                                        group2
+                                    )
+
+                                    st.plotly_chart(
+                                        fig,
+                                        use_container_width=True,
+                                        key="two_sample_ztest_result_plot"
+                                    )
+
+                                with interpretation_col:
+                                    with st.container(border=True):
+                                        st.write("#### Interpretation")
+                                        for line in interpretation:
+                                            st.write(f"- {line}")
+
+                                st.write("#### Result Table")
+                                st.dataframe(result_table, use_container_width=True)
+
+                        except Exception as error:
+                            st.error(error)
 
     # --------------------------------------------------------
     # One-proportion z-test
@@ -2997,25 +3264,34 @@ if st.session_state.step == "z_tests":
                 key="one_prop_z_col"
             )
 
-            categories = selected_df[categorical_column].dropna().astype(str).unique().tolist()
-
-            success_category = st.selectbox(
-                "Choose success category",
-                categories,
-                key="one_prop_z_success"
+            categories = (
+                selected_df[categorical_column]
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
             )
 
-            hypothesized_proportion = st.number_input(
-                "Enter hypothesized proportion",
-                min_value=0.0001,
-                max_value=0.9999,
-                value=0.5,
-                key="one_prop_z_p0"
-            )
+            if len(categories) < 2:
+                st.warning("The selected categorical column must have at least two categories.")
 
-            if st.button("Run One-proportion Z-Test", type="primary"):
+            else:
+                success_category = st.selectbox(
+                    "Choose success category",
+                    categories,
+                    key="one_prop_z_success"
+                )
+
+                hypothesized_proportion = st.number_input(
+                    "Enter hypothesized proportion",
+                    min_value=0.0001,
+                    max_value=0.9999,
+                    value=0.5,
+                    key="one_prop_z_p0"
+                )
+
                 try:
-                    result = run_one_proportion_ztest(
+                    assumption_result = check_one_proportion_ztest_assumptions(
                         selected_df,
                         categorical_column,
                         success_category,
@@ -3023,27 +3299,55 @@ if st.session_state.step == "z_tests":
                         alpha
                     )
 
-                    result_table = create_ztest_result_table(result)
-                    interpretation = get_ztest_interpretation(result)
-
-                    plot_col, interpretation_col = st.columns([1.2, 1])
-
-                    with plot_col:
-                        st.write("#### Visualization")
-                        fig = plot_one_proportion_ztest(result)
-                        st.plotly_chart(fig, use_container_width=True)
-
-                    with interpretation_col:
-                        with st.container(border=True):
-                            st.write("#### Interpretation")
-                            for line in interpretation:
-                                st.write(f"- {line}")
-
-                    st.write("#### Result Table")
-                    st.dataframe(result_table, use_container_width=True)
+                    render_assumption_panel(
+                        assumption_result,
+                        panel_key="one_proportion_ztest"
+                    )
 
                 except Exception as error:
                     st.error(error)
+                    assumption_result = None
+
+                if st.button(
+                    "Run One-proportion Z-Test",
+                    type="primary",
+                    key="run_one_proportion_ztest"
+                ):
+                    try:
+                        result = run_one_proportion_ztest(
+                            selected_df,
+                            categorical_column,
+                            success_category,
+                            hypothesized_proportion,
+                            alpha
+                        )
+
+                        result_table = create_ztest_result_table(result)
+                        interpretation = get_ztest_interpretation(result)
+
+                        plot_col, interpretation_col = st.columns([1.2, 1])
+
+                        with plot_col:
+                            st.write("#### Visualization")
+                            fig = plot_one_proportion_ztest(result)
+
+                            st.plotly_chart(
+                                fig,
+                                use_container_width=True,
+                                key="one_proportion_ztest_result_plot"
+                            )
+
+                        with interpretation_col:
+                            with st.container(border=True):
+                                st.write("#### Interpretation")
+                                for line in interpretation:
+                                    st.write(f"- {line}")
+
+                        st.write("#### Result Table")
+                        st.dataframe(result_table, use_container_width=True)
+
+                    except Exception as error:
+                        st.error(error)
 
     # --------------------------------------------------------
     # Two-proportion z-test
@@ -3065,92 +3369,155 @@ if st.session_state.step == "z_tests":
                 key="two_prop_z_outcome"
             )
 
-            success_categories = selected_df[outcome_column].dropna().astype(str).unique().tolist()
-
-            success_category = st.selectbox(
-                "Choose success category",
-                success_categories,
-                key="two_prop_z_success"
+            success_categories = (
+                selected_df[outcome_column]
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
             )
 
-            possible_group_columns = [
-                col for col in categorical_columns
-                if col != outcome_column
-            ]
+            if len(success_categories) < 2:
+                st.warning("The selected outcome column must have at least two categories.")
 
-            group_column = st.selectbox(
-                "Choose grouping column",
-                possible_group_columns,
-                key="two_prop_z_group_col"
-            )
+            else:
+                success_category = st.selectbox(
+                    "Choose success category",
+                    success_categories,
+                    key="two_prop_z_success"
+                )
 
-            group_values = selected_df[group_column].dropna().astype(str).unique().tolist()
+                possible_group_columns = [
+                    col for col in categorical_columns
+                    if col != outcome_column
+                ]
 
-            group1 = st.selectbox(
-                "Choose Group 1",
-                group_values,
-                key="two_prop_z_group1"
-            )
+                if len(possible_group_columns) == 0:
+                    st.warning("No suitable grouping column found.")
 
-            group2 = st.selectbox(
-                "Choose Group 2",
-                group_values,
-                key="two_prop_z_group2"
-            )
+                else:
+                    group_column = st.selectbox(
+                        "Choose grouping column",
+                        possible_group_columns,
+                        key="two_prop_z_group_col"
+                    )
 
-            if group1 == group2:
-                st.warning("Group 1 and Group 2 must be different.")
+                    group_values = (
+                        selected_df[group_column]
+                        .dropna()
+                        .astype(str)
+                        .unique()
+                        .tolist()
+                    )
 
-            if st.button("Run Two-proportion Z-Test", type="primary"):
-                try:
-                    if group1 == group2:
-                        st.error("Please select two different groups.")
+                    if len(group_values) < 2:
+                        st.warning("The selected grouping column must have at least two groups.")
+
                     else:
-                        result = run_two_proportion_ztest(
-                            selected_df,
-                            outcome_column,
-                            success_category,
-                            group_column,
-                            group1,
-                            group2,
-                            alpha
+                        group1 = st.selectbox(
+                            "Choose Group 1",
+                            group_values,
+                            key="two_prop_z_group1"
                         )
 
-                        result_table = create_ztest_result_table(result)
-                        interpretation = get_ztest_interpretation(result)
+                        group2_default_index = 1 if len(group_values) > 1 else 0
 
-                        plot_col, interpretation_col = st.columns([1.2, 1])
+                        group2 = st.selectbox(
+                            "Choose Group 2",
+                            group_values,
+                            index=group2_default_index,
+                            key="two_prop_z_group2"
+                        )
 
-                        with plot_col:
-                            st.write("#### Visualization")
-                            fig = plot_two_proportion_ztest(result)
-                            st.plotly_chart(fig, use_container_width=True)
+                        if group1 == group2:
+                            st.warning("Group 1 and Group 2 must be different.")
 
-                        with interpretation_col:
-                            with st.container(border=True):
-                                st.write("#### Interpretation")
-                                for line in interpretation:
-                                    st.write(f"- {line}")
+                        else:
+                            try:
+                                assumption_result = check_two_proportion_ztest_assumptions(
+                                    selected_df,
+                                    outcome_column,
+                                    success_category,
+                                    group_column,
+                                    group1,
+                                    group2,
+                                    alpha
+                                )
 
-                        st.write("#### Result Table")
-                        st.dataframe(result_table, use_container_width=True)
+                                render_assumption_panel(
+                                    assumption_result,
+                                    panel_key="two_proportion_ztest"
+                                )
 
-                except Exception as error:
-                    st.error(error)
+                            except Exception as error:
+                                st.error(error)
+                                assumption_result = None
+
+                        if st.button(
+                            "Run Two-proportion Z-Test",
+                            type="primary",
+                            key="run_two_proportion_ztest"
+                        ):
+                            try:
+                                if group1 == group2:
+                                    st.error("Please select two different groups.")
+
+                                else:
+                                    result = run_two_proportion_ztest(
+                                        selected_df,
+                                        outcome_column,
+                                        success_category,
+                                        group_column,
+                                        group1,
+                                        group2,
+                                        alpha
+                                    )
+
+                                    result_table = create_ztest_result_table(result)
+                                    interpretation = get_ztest_interpretation(result)
+
+                                    plot_col, interpretation_col = st.columns([1.2, 1])
+
+                                    with plot_col:
+                                        st.write("#### Visualization")
+                                        fig = plot_two_proportion_ztest(result)
+
+                                        st.plotly_chart(
+                                            fig,
+                                            use_container_width=True,
+                                            key="two_proportion_ztest_result_plot"
+                                        )
+
+                                    with interpretation_col:
+                                        with st.container(border=True):
+                                            st.write("#### Interpretation")
+                                            for line in interpretation:
+                                                st.write(f"- {line}")
+
+                                    st.write("#### Result Table")
+                                    st.dataframe(result_table, use_container_width=True)
+
+                            except Exception as error:
+                                st.error(error)
 
     st.divider()
 
     col_back, col_next = st.columns([1, 2])
 
     with col_back:
-        if st.button("Back to Chi-Square Tests"):
+        if st.button("Back to Chi-Square Tests", key="ztest_back_to_chi_square"):
             st.session_state.step = "chi_square"
             st.rerun()
 
     with col_next:
-        if st.button("Continue to Distribution Fitting", type="primary"):
+        if st.button(
+            "Continue to Distribution Fitting",
+            type="primary",
+            key="ztest_continue_distribution_fitting"
+        ):
             st.session_state.step = "distribution_fitting"
             st.rerun()
+
 
 
 # ------------------------------------------------------------
@@ -3158,7 +3525,6 @@ if st.session_state.step == "z_tests":
 # ------------------------------------------------------------
 
 if st.session_state.step == "distribution_fitting":
-
 
     if st.session_state.selected_df is None:
         page_locked_message()
@@ -3169,8 +3535,8 @@ if st.session_state.step == "distribution_fitting":
     st.subheader("Distribution Fitting")
 
     st.info(
-        "This section fits Normal, Exponential, and Uniform distributions using least-squares error. "
-        "The observed histogram density is compared against each theoretical PDF curve."
+        "This section fits theoretical probability distributions to a numerical variable. "
+        "The observed histogram density is compared against fitted PDF curves, and the best fit is selected using error values."
     )
 
     numerical_columns = get_numerical_columns(selected_df)
@@ -3178,7 +3544,7 @@ if st.session_state.step == "distribution_fitting":
     if len(numerical_columns) == 0:
         st.warning("No numerical columns found in the selected dataset.")
 
-        if st.button("Back to Z-Tests"):
+        if st.button("Back to Z-Tests", key="dist_fit_back_no_numeric"):
             st.session_state.step = "z_tests"
             st.rerun()
 
@@ -3197,121 +3563,221 @@ if st.session_state.step == "distribution_fitting":
             key="dist_fit_bins"
         )
 
-        if st.button("Fit Distributions using Least Squares", type="primary"):
-            try:
-                results, data, bin_centers, observed_density = fit_all_distributions_least_squares(
-                    selected_df,
-                    selected_column,
-                    bins=bins
-                )
+        # Clear old distribution fitting results when user changes column or bins
+        current_signature = f"{selected_column}_{bins}"
 
-                st.session_state.dist_fit_results = results
-                st.session_state.dist_fit_data = data
-                st.session_state.dist_fit_column_name = selected_column
-                st.session_state.dist_fit_bins_used = bins
+        if (
+            "dist_fit_signature" in st.session_state
+            and st.session_state.dist_fit_signature != current_signature
+        ):
+            keys_to_clear = [
+                "dist_fit_results",
+                "dist_fit_data",
+                "dist_fit_column_name",
+                "dist_fit_bins_used",
+            ]
 
-            except Exception as error:
-                st.error(error)
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
 
-        if "dist_fit_results" in st.session_state:
+        st.session_state.dist_fit_signature = current_signature
 
-            results = st.session_state.dist_fit_results
-            data = st.session_state.dist_fit_data
-            fitted_column = st.session_state.dist_fit_column_name
-            bins_used = st.session_state.dist_fit_bins_used
+        clean_data_preview = pd.to_numeric(
+            selected_df[selected_column],
+            errors="coerce"
+        ).dropna()
 
-            st.write(f"### Fitting Results for `{fitted_column}`")
+        if clean_data_preview.empty:
+            st.warning("The selected column has no valid numerical values.")
 
-            fit_table = create_distribution_fit_table(results)
+        else:
+            metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
 
-            plot_col, interpretation_col = st.columns([1.2, 1])
+            with metric_col1:
+                st.metric("Valid Values", len(clean_data_preview))
 
-            with plot_col:
-                st.write("#### Histogram with Fitted PDFs")
-                fig = plot_distribution_fits(data, results, bins=bins_used)
-                st.plotly_chart(fig, use_container_width=True)
+            with metric_col2:
+                st.metric("Mean", round(float(clean_data_preview.mean()), 4))
 
-            with interpretation_col:
-                with st.container(border=True):
-                    st.write("#### Interpretation")
+            with metric_col3:
+                st.metric("Std Dev", round(float(clean_data_preview.std()), 4))
 
-                    interpretation = get_distribution_fit_interpretation(
-                        results,
-                        fitted_column
-                    )
+            with metric_col4:
+                st.metric("Skewness", round(float(clean_data_preview.skew()), 4))
 
-                    for line in interpretation:
-                        st.write(f"- {line}")
-
-            st.write("#### Least-Squares Fit Comparison Table")
-            st.dataframe(fit_table, use_container_width=True)
-
-            st.divider()
-
-            st.write("### Inspect One Fitted Distribution")
-
-            distribution_names = [result["Distribution"] for result in results]
-
-            selected_distribution_name = st.selectbox(
-                "Choose fitted distribution to inspect",
-                distribution_names,
-                key="selected_distribution_inspect"
+            st.write(
+                "The app will compare the observed data distribution against candidate theoretical distributions. "
+                "Lower SSE, MSE, and RMSE values mean a better least-squares fit."
             )
 
-            selected_result = None
+            if st.button(
+                "Fit Distributions using Least Squares",
+                type="primary",
+                key="run_distribution_fitting"
+            ):
+                try:
+                    results, data, bin_centers, observed_density = fit_all_distributions_least_squares(
+                        selected_df,
+                        selected_column,
+                        bins=bins
+                    )
 
-            for result in results:
-                if result["Distribution"] == selected_distribution_name:
-                    selected_result = result
-                    break
+                    st.session_state.dist_fit_results = results
+                    st.session_state.dist_fit_data = data
+                    st.session_state.dist_fit_column_name = selected_column
+                    st.session_state.dist_fit_bins_used = bins
 
-            if selected_result is not None:
+                except Exception as error:
+                    st.error(error)
 
-                plot_col2, interpretation_col2 = st.columns([1.2, 1])
+            if "dist_fit_results" in st.session_state:
 
-                with plot_col2:
-                    st.write(f"#### {selected_distribution_name} Fit")
-                    fig_single = plot_single_distribution_fit(
+                results = st.session_state.dist_fit_results
+                data = st.session_state.dist_fit_data
+                fitted_column = st.session_state.dist_fit_column_name
+                bins_used = st.session_state.dist_fit_bins_used
+
+                st.divider()
+
+                st.write(f"### Fitting Results for `{fitted_column}`")
+
+                fit_table = create_distribution_fit_table(results)
+
+                if len(results) > 0:
+                    best_result = min(results, key=lambda result: result["SSE"])
+
+                    best_col1, best_col2, best_col3, best_col4 = st.columns(4)
+
+                    with best_col1:
+                        st.metric("Best Fit", best_result["Distribution"])
+
+                    with best_col2:
+                        st.metric("SSE", round(float(best_result["SSE"]), 6))
+
+                    with best_col3:
+                        st.metric("MSE", round(float(best_result["MSE"]), 6))
+
+                    with best_col4:
+                        st.metric("RMSE", round(float(best_result["RMSE"]), 6))
+
+                plot_col, interpretation_col = st.columns([1.2, 1])
+
+                with plot_col:
+                    st.write("#### Histogram with Fitted PDFs")
+
+                    fig = plot_distribution_fits(
                         data,
-                        selected_result,
+                        results,
                         bins=bins_used
                     )
-                    st.pyplot(fig_single)
 
-                    st.write(f"#### Q-Q Plot against {selected_distribution_name}")
-                    fig_qq = plot_distribution_qq(data, selected_result)
-                    st.pyplot(fig_qq)
+                    render_distribution_figure(
+                        fig,
+                        key="distribution_fit_all_pdf_plot"
+                    )
 
-                with interpretation_col2:
+                with interpretation_col:
                     with st.container(border=True):
-                        st.write("#### Distribution Notes")
+                        st.write("#### Interpretation")
 
-                        selected_interpretation = get_selected_distribution_interpretation(
+                        interpretation = get_distribution_fit_interpretation(
+                            results,
+                            fitted_column
+                        )
+
+                        for line in interpretation:
+                            st.write(f"- {line}")
+
+                st.write("#### Least-Squares Fit Comparison Table")
+                st.dataframe(fit_table, use_container_width=True)
+
+                st.divider()
+
+                st.write("### Inspect One Fitted Distribution")
+
+                distribution_names = [
+                    result["Distribution"]
+                    for result in results
+                ]
+
+                selected_distribution_name = st.selectbox(
+                    "Choose fitted distribution to inspect",
+                    distribution_names,
+                    key="selected_distribution_inspect"
+                )
+
+                selected_result = None
+
+                for result in results:
+                    if result["Distribution"] == selected_distribution_name:
+                        selected_result = result
+                        break
+
+                if selected_result is not None:
+
+                    plot_col2, interpretation_col2 = st.columns([1.2, 1])
+
+                    with plot_col2:
+                        st.write(f"#### {selected_distribution_name} Fit")
+
+                        fig_single = plot_single_distribution_fit(
+                            data,
+                            selected_result,
+                            bins=bins_used
+                        )
+
+                        render_distribution_figure(
+                            fig_single,
+                            key=f"single_distribution_fit_{selected_distribution_name}"
+                        )
+
+                        st.write(f"#### Q-Q Plot against {selected_distribution_name}")
+
+                        fig_qq = plot_distribution_qq(
+                            data,
                             selected_result
                         )
 
-                        for line in selected_interpretation:
-                            st.write(f"- {line}")
+                        render_distribution_figure(
+                            fig_qq,
+                            key=f"distribution_qq_{selected_distribution_name}"
+                        )
 
-                        st.divider()
+                    with interpretation_col2:
+                        with st.container(border=True):
+                            st.write("#### Distribution Notes")
 
-                        st.write("#### Error Values")
+                            selected_interpretation = get_selected_distribution_interpretation(
+                                selected_result
+                            )
 
-                        st.write(f"**SSE:** {selected_result['SSE']:.6f}")
-                        st.write(f"**MSE:** {selected_result['MSE']:.6f}")
-                        st.write(f"**RMSE:** {selected_result['RMSE']:.6f}")
+                            for line in selected_interpretation:
+                                st.write(f"- {line}")
+
+                            st.divider()
+
+                            st.write("#### Error Values")
+
+                            st.write(f"**SSE:** {selected_result['SSE']:.6f}")
+                            st.write(f"**MSE:** {selected_result['MSE']:.6f}")
+                            st.write(f"**RMSE:** {selected_result['RMSE']:.6f}")
 
         st.divider()
 
         col_back, col_next = st.columns([1, 2])
 
         with col_back:
-            if st.button("Back to Z-Tests"):
+            if st.button("Back to Z-Tests", key="dist_fit_back_to_z_tests"):
                 st.session_state.step = "z_tests"
                 st.rerun()
 
         with col_next:
-            if st.button("Continue to CLT Simulation", type="primary"):
+            if st.button(
+                "Continue to CLT Simulation",
+                type="primary",
+                key="dist_fit_continue_to_clt"
+            ):
                 st.session_state.step = "clt_simulation"
                 st.rerun()
 
