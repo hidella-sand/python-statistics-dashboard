@@ -5,6 +5,76 @@ import statsmodels.api as sm
 from statsmodels.formula.api import ols
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from scipy import stats
+import plotly.graph_objects as go
+
+
+
+
+PLOT_COLORS = {
+    "primary": "#7C5CFF",
+    "secondary": "#A78BFA",
+    "blue": "#60A5FA",
+    "green": "#00B894",
+    "warning": "#F59E0B",
+    "error": "#EF4444",
+    "bg": "#181A1F",
+    "card": "#242529",
+    "grid": "#3A3B40",
+    "text": "#F5F5F5",
+    "muted": "#A3A3A3",
+}
+
+
+def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
+    """
+    Applies dark dashboard theme to Plotly figures.
+    """
+
+    fig.update_layout(
+        title={
+            "text": title if title else "",
+            "x": 0.02,
+            "xanchor": "left",
+            "font": {"size": 18, "color": PLOT_COLORS["text"]},
+        },
+        paper_bgcolor=PLOT_COLORS["bg"],
+        plot_bgcolor=PLOT_COLORS["card"],
+        font={"color": PLOT_COLORS["text"], "family": "Arial"},
+        height=height,
+        margin={"l": 45, "r": 25, "t": 60, "b": 45},
+        hovermode="closest",
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1,
+            "font": {"color": PLOT_COLORS["muted"]},
+        },
+    )
+
+    fig.update_xaxes(
+        title_text=x_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    fig.update_yaxes(
+        title_text=y_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["grid"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+    )
+
+    return fig
+
+
+
 
 
 def format_number(value):
@@ -268,41 +338,81 @@ def run_two_way_anova(df, numeric_column, factor1, factor2, alpha=0.05):
 
 def plot_two_way_interaction(df, numeric_column, factor1, factor2):
     """
-    Interaction plot for two-way ANOVA.
-    Shows how mean of numeric column changes across factor1 for each level of factor2.
+    Creates a Plotly interaction plot for two-way ANOVA.
+
+    The plot shows the mean of the numerical outcome for each level of factor1,
+    separated by the levels of factor2.
+
+    If the lines are roughly parallel, interaction may be weak.
+    If the lines cross or separate strongly, interaction may be present.
     """
 
-    anova_df = prepare_anova_data(df, numeric_column, [factor1, factor2])
+    clean_df = df[[numeric_column, factor1, factor2]].copy()
 
-    mean_df = anova_df.groupby([factor1, factor2])[numeric_column].mean().reset_index()
+    clean_df[numeric_column] = pd.to_numeric(clean_df[numeric_column], errors="coerce")
+    clean_df[factor1] = clean_df[factor1].astype(str)
+    clean_df[factor2] = clean_df[factor2].astype(str)
 
-    factor1_levels = sorted(mean_df[factor1].unique())
-    factor2_levels = sorted(mean_df[factor2].unique())
+    clean_df = clean_df.dropna()
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    if clean_df.empty:
+        raise ValueError("No valid data available for interaction plot.")
 
-    for level in factor2_levels:
-        subset = mean_df[mean_df[factor2] == level]
+    summary_df = (
+        clean_df
+        .groupby([factor1, factor2])[numeric_column]
+        .mean()
+        .reset_index()
+    )
 
-        y_values = []
+    fig = go.Figure()
 
-        for f1_level in factor1_levels:
-            value = subset[subset[factor1] == f1_level][numeric_column]
+    factor2_levels = summary_df[factor2].unique().tolist()
 
-            if len(value) > 0:
-                y_values.append(value.iloc[0])
-            else:
-                y_values.append(np.nan)
+    color_palette = [
+        PLOT_COLORS["primary"],
+        PLOT_COLORS["secondary"],
+        PLOT_COLORS["blue"],
+        PLOT_COLORS["green"],
+        PLOT_COLORS["warning"],
+        PLOT_COLORS["error"],
+    ]
 
-        ax.plot(factor1_levels, y_values, marker="o", label=str(level))
+    for index, factor2_level in enumerate(factor2_levels):
+        subset = summary_df[summary_df[factor2] == factor2_level]
 
-    ax.set_title(f"Interaction Plot: {factor1} × {factor2}", fontsize=12)
-    ax.set_xlabel(factor1)
-    ax.set_ylabel(f"Mean {numeric_column}")
-    ax.grid(True, alpha=0.3)
-    ax.legend(title=factor2)
+        fig.add_trace(
+            go.Scatter(
+                x=subset[factor1],
+                y=subset[numeric_column],
+                mode="lines+markers",
+                name=str(factor2_level),
+                line={
+                    "width": 3,
+                    "color": color_palette[index % len(color_palette)],
+                },
+                marker={
+                    "size": 9,
+                    "color": color_palette[index % len(color_palette)],
+                },
+                hovertemplate=(
+                    f"{factor1}: %{{x}}<br>"
+                    f"{factor2}: {factor2_level}<br>"
+                    f"Mean {numeric_column}: %{{y:.4f}}"
+                    "<extra></extra>"
+                ),
+            )
+        )
 
-    plt.xticks(rotation=25)
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Interaction Plot: {factor1} × {factor2}",
+        x_title=factor1,
+        y_title=f"Mean {numeric_column}",
+        height=460,
+    )
+
+    fig.update_xaxes(type="category")
 
     return fig
 

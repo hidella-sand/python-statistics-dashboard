@@ -122,7 +122,13 @@ from utils.assumption_checks import (
     plot_assumption_histogram,
     plot_assumption_qq,
     plot_independent_groups_boxplot,
-    plot_paired_differences
+    plot_paired_differences,
+    check_one_way_anova_assumptions,
+    check_two_way_anova_assumptions,
+    plot_anova_group_boxplot,
+    plot_anova_cell_boxplot,
+    plot_anova_residuals_qq,
+    plot_anova_residual_histogram
 )
 
 from utils.visualizations import (
@@ -331,6 +337,61 @@ def render_assumption_panel(assumption_result, panel_key):
                     title="Q-Q Plot of Paired Differences"
                 )
                 st.plotly_chart(fig_qq, use_container_width=True)
+
+
+
+        elif assumption_result["test"] == "One-way ANOVA":
+            clean_df = diagnostic_data["clean_df"]
+            numeric_column = diagnostic_data["numeric_column"]
+            factor_column = diagnostic_data["factor_column"]
+            residuals = diagnostic_data["residuals"]
+
+            fig_box = plot_anova_group_boxplot(
+                clean_df,
+                numeric_column,
+                factor_column
+            )
+            st.plotly_chart(fig_box, use_container_width=True)
+
+            plot_col1, plot_col2 = st.columns(2)
+
+            with plot_col1:
+                fig_resid_hist = plot_anova_residual_histogram(residuals)
+                st.plotly_chart(fig_resid_hist, use_container_width=True)
+
+            with plot_col2:
+                fig_resid_qq = plot_anova_residuals_qq(
+                    residuals,
+                    title="Q-Q Plot of One-way ANOVA Residuals"
+                )
+                st.plotly_chart(fig_resid_qq, use_container_width=True)
+
+        elif assumption_result["test"] == "Two-way ANOVA":
+            clean_df = diagnostic_data["clean_df"]
+            numeric_column = diagnostic_data["numeric_column"]
+            cell_column = diagnostic_data["cell_column"]
+            residuals = diagnostic_data["residuals"]
+
+            fig_box = plot_anova_cell_boxplot(
+                clean_df,
+                numeric_column,
+                cell_column
+            )
+            st.plotly_chart(fig_box, use_container_width=True)
+
+            plot_col1, plot_col2 = st.columns(2)
+
+            with plot_col1:
+                fig_resid_hist = plot_anova_residual_histogram(residuals)
+                st.plotly_chart(fig_resid_hist, use_container_width=True)
+
+            with plot_col2:
+                fig_resid_qq = plot_anova_residuals_qq(
+                    residuals,
+                    title="Q-Q Plot of Two-way ANOVA Residuals"
+                )
+                st.plotly_chart(fig_resid_qq, use_container_width=True)
+        
 
 # ------------------------------------------------------------
 # Header
@@ -2126,11 +2187,10 @@ elif st.session_state.step == "nonparametric_tests":
 
 
 # ------------------------------------------------------------
-# STEP 8: ANOVA
+# ANOVA
 # ------------------------------------------------------------
 
-if st.session_state.step == "anova":
-
+elif st.session_state.step == "anova":
 
     if st.session_state.selected_df is None:
         page_locked_message()
@@ -2141,7 +2201,8 @@ if st.session_state.step == "anova":
     st.subheader("ANOVA Tests")
 
     st.info(
-        "ANOVA is used to compare means across groups. This section includes one-way ANOVA and two-way ANOVA with interaction."
+        "ANOVA is used to compare means across groups. This section includes one-way ANOVA "
+        "and two-way ANOVA with interaction. Assumption checks are shown before running each test."
     )
 
     numerical_columns = get_numerical_columns(selected_df)
@@ -2155,16 +2216,8 @@ if st.session_state.step == "anova":
     if len(numerical_columns) == 0:
         st.warning("No numerical columns found in the selected dataset.")
 
-        if st.button("Back to T-Tests"):
-            st.session_state.step = "t_tests"
-            st.rerun()
-
     elif len(categorical_columns) == 0:
         st.warning("No suitable categorical columns found. ANOVA needs grouping/factor columns.")
-
-        if st.button("Back to T-Tests"):
-            st.session_state.step = "t_tests"
-            st.rerun()
 
     else:
         alpha = st.selectbox(
@@ -2183,8 +2236,8 @@ if st.session_state.step == "anova":
             st.write("### One-way ANOVA")
 
             st.write(
-                "Use one-way ANOVA when you want to compare the mean of one numerical variable across 3 or more groups. "
-                "It can also run with 2 groups, but t-test is usually simpler for exactly 2 groups."
+                "Use one-way ANOVA when you want to compare the mean of one numerical variable "
+                "across groups of one categorical factor."
             )
 
             numeric_column = st.selectbox(
@@ -2208,10 +2261,35 @@ if st.session_state.step == "anova":
 
             st.caption(f"Detected number of groups in `{factor_column}`: {group_count}")
 
-            if group_count < 2:
-                st.warning("The selected factor must have at least 2 groups.")
+            assumption_result = None
 
-            if st.button("Run One-way ANOVA", type="primary"):
+            try:
+                assumption_result = check_one_way_anova_assumptions(
+                    selected_df,
+                    numeric_column,
+                    factor_column,
+                    alpha
+                )
+
+                render_assumption_panel(
+                    assumption_result,
+                    panel_key="one_way_anova_assumptions"
+                )
+
+            except Exception as error:
+                st.error(f"Could not run assumption checks: {error}")
+
+            run_disabled = (
+                assumption_result is not None
+                and assumption_result["recommendation_type"] == "error"
+            )
+
+            if st.button(
+                "Run One-way ANOVA",
+                type="primary",
+                disabled=run_disabled,
+                key="run_one_way_anova"
+            ):
                 try:
                     result = run_one_way_anova(
                         selected_df,
@@ -2222,16 +2300,27 @@ if st.session_state.step == "anova":
 
                     interpretation = get_one_way_anova_interpretation(result)
 
+                    st.divider()
+                    st.write("### Test Result")
+
                     plot_col, interpretation_col = st.columns([1.2, 1])
 
                     with plot_col:
                         st.write("#### Group Comparison Plot")
-                        fig = plot_one_way_anova(
-                            selected_df,
+
+                        clean_df = assumption_result["diagnostic_data"]["clean_df"]
+
+                        fig = plot_anova_group_boxplot(
+                            clean_df,
                             numeric_column,
                             factor_column
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+
+                        st.plotly_chart(
+                            fig,
+                            use_container_width=True,
+                            key="one_way_anova_result_group_plot"
+                        )
 
                     with interpretation_col:
                         with st.container(border=True):
@@ -2270,8 +2359,8 @@ if st.session_state.step == "anova":
             st.write("### Two-way ANOVA")
 
             st.write(
-                "Use two-way ANOVA when you want to study the effect of two categorical factors on one numerical variable. "
-                "This also checks whether the two factors interact with each other."
+                "Use two-way ANOVA when you want to study the effect of two categorical factors "
+                "on one numerical variable. This also checks whether the two factors interact."
             )
 
             numeric_column = st.selectbox(
@@ -2311,7 +2400,36 @@ if st.session_state.step == "anova":
                     f"`{factor2}` = {selected_df[factor2].nunique(dropna=True)}"
                 )
 
-                if st.button("Run Two-way ANOVA", type="primary"):
+                assumption_result = None
+
+                try:
+                    assumption_result = check_two_way_anova_assumptions(
+                        selected_df,
+                        numeric_column,
+                        factor1,
+                        factor2,
+                        alpha
+                    )
+
+                    render_assumption_panel(
+                        assumption_result,
+                        panel_key="two_way_anova_assumptions"
+                    )
+
+                except Exception as error:
+                    st.error(f"Could not run assumption checks: {error}")
+
+                run_disabled = (
+                    assumption_result is not None
+                    and assumption_result["recommendation_type"] == "error"
+                )
+
+                if st.button(
+                    "Run Two-way ANOVA",
+                    type="primary",
+                    disabled=run_disabled,
+                    key="run_two_way_anova"
+                ):
                     try:
                         result = run_two_way_anova(
                             selected_df,
@@ -2323,17 +2441,43 @@ if st.session_state.step == "anova":
 
                         interpretation = get_two_way_anova_interpretation(result)
 
+                        st.divider()
+                        st.write("### Test Result")
+
                         plot_col, interpretation_col = st.columns([1.2, 1])
 
                         with plot_col:
+                            st.write("#### Factor Combination Plot")
+
+                            clean_df = assumption_result["diagnostic_data"]["clean_df"]
+                            cell_column = assumption_result["diagnostic_data"]["cell_column"]
+
+                            fig = plot_anova_cell_boxplot(
+                                clean_df,
+                                numeric_column,
+                                cell_column
+                            )
+
+                            st.plotly_chart(
+                                fig,
+                                use_container_width=True,
+                                key="two_way_anova_result_cell_plot"
+                            )
+
                             st.write("#### Interaction Plot")
-                            fig = plot_two_way_interaction(
+
+                            fig_interaction = plot_two_way_interaction(
                                 selected_df,
                                 numeric_column,
                                 factor1,
                                 factor2
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+
+                            st.plotly_chart(
+                                fig_interaction,
+                                use_container_width=True,
+                                key="two_way_anova_interaction_plot"
+)
 
                         with interpretation_col:
                             with st.container(border=True):
@@ -2355,22 +2499,10 @@ if st.session_state.step == "anova":
 
         st.divider()
 
-        col_back, col_next = st.columns([1, 2])
-
-        with col_back:
-            if st.button("Back to T-Tests"):
-                st.session_state.step = "t_tests"
-                st.rerun()
-
-
-        with col_next:
-            if st.button("Continue to Chi-Square Tests", type="primary"):
-                st.session_state.step = "chi_square"
-                st.rerun()
-
-
-
-
+        st.caption(
+            "If one-way ANOVA assumptions are weak, consider the Kruskal-Wallis test from the Non-parametric Tests page. "
+            "For two-way ANOVA, there is no simple direct non-parametric replacement in this toolkit, so interpret warnings carefully."
+        )
 # ------------------------------------------------------------
 # STEP 9: Chi-Square Tests
 # ------------------------------------------------------------

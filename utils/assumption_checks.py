@@ -869,3 +869,500 @@ def plot_paired_differences(differences):
         x_label="After - Before",
         bins=25
     )
+
+
+
+# ------------------------------------------------------------
+# ANOVA assumption checks
+# ------------------------------------------------------------
+
+from statsmodels.formula.api import ols
+
+
+def _clean_anova_data(df, numeric_column, factor_columns):
+    """
+    Prepares data for ANOVA assumption checks.
+    """
+
+    required_columns = [numeric_column] + factor_columns
+
+    clean_df = df[required_columns].copy()
+    clean_df[numeric_column] = pd.to_numeric(clean_df[numeric_column], errors="coerce")
+
+    for factor in factor_columns:
+        clean_df[factor] = clean_df[factor].astype(str)
+
+    clean_df = clean_df.dropna()
+
+    if clean_df.empty:
+        raise ValueError("No valid data available after removing missing values.")
+
+    if clean_df[numeric_column].nunique() < 2:
+        raise ValueError("The numerical outcome must contain at least two different values.")
+
+    for factor in factor_columns:
+        if clean_df[factor].nunique() < 2:
+            raise ValueError(f"The factor column `{factor}` must contain at least two groups.")
+
+    return clean_df
+
+
+def check_one_way_anova_assumptions(df, numeric_column, factor_column, alpha=0.05):
+    """
+    Checks assumptions for one-way ANOVA.
+
+    Main assumptions:
+    - Numerical outcome variable
+    - One categorical factor
+    - Independent groups
+    - Approximately normal residuals / normality within groups
+    - Homogeneity of variances using Levene's test
+    - Reasonable group sizes
+    """
+
+    clean_df = _clean_anova_data(df, numeric_column, [factor_column])
+
+    checks = []
+
+    checks.append(
+        create_check(
+            "Data structure",
+            "Numerical outcome + categorical factor",
+            "success",
+            f"`{numeric_column}` is compared across groups of `{factor_column}`."
+        )
+    )
+
+    group_counts = clean_df[factor_column].value_counts()
+    group_count = len(group_counts)
+    smallest_group_size = int(group_counts.min())
+
+    if group_count < 2:
+        checks.append(
+            create_check(
+                "Number of groups",
+                "Too few groups",
+                "error",
+                "One-way ANOVA requires at least two groups. Usually it is used for three or more groups."
+            )
+        )
+    elif group_count == 2:
+        checks.append(
+            create_check(
+                "Number of groups",
+                "Two groups detected",
+                "warning",
+                "ANOVA can run with two groups, but an independent t-test is usually simpler."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Number of groups",
+                "Group count acceptable",
+                "success",
+                f"{group_count} groups detected."
+            )
+        )
+
+    if smallest_group_size < 2:
+        checks.append(
+            create_check(
+                "Group sizes",
+                "Too small",
+                "error",
+                f"The smallest group has only {smallest_group_size} value(s)."
+            )
+        )
+    elif smallest_group_size < 5:
+        checks.append(
+            create_check(
+                "Group sizes",
+                "Small group warning",
+                "warning",
+                f"The smallest group has {smallest_group_size} values. ANOVA is less stable with very small groups."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Group sizes",
+                "Group sizes acceptable",
+                "success",
+                f"The smallest group has {smallest_group_size} values."
+            )
+        )
+
+    # Normality by group
+    normality_warnings = 0
+
+    for group_name, group_data in clean_df.groupby(factor_column):
+        values = group_data[numeric_column].dropna()
+        normality = run_shapiro_normality(values, alpha=alpha)
+
+        if normality["status_type"] == "warning":
+            normality_warnings += 1
+
+        checks.append(
+            create_check(
+                f"Normality: {group_name}",
+                normality["status"],
+                normality["status_type"],
+                normality["message"]
+            )
+        )
+
+    # Levene's test
+    groups = [
+        group_data[numeric_column].dropna().values
+        for _, group_data in clean_df.groupby(factor_column)
+        if len(group_data[numeric_column].dropna()) >= 2
+    ]
+
+    if len(groups) >= 2:
+        levene_statistic, levene_p_value = stats.levene(*groups)
+
+        if levene_p_value < alpha:
+            checks.append(
+                create_check(
+                    "Equal variance",
+                    "Variance concern",
+                    "warning",
+                    f"Levene p-value = {format_number(levene_p_value)}. Equal variance assumption may be violated."
+                )
+            )
+        else:
+            checks.append(
+                create_check(
+                    "Equal variance",
+                    "Equal variance acceptable",
+                    "success",
+                    f"Levene p-value = {format_number(levene_p_value)}. There is not enough evidence to say variances are unequal."
+                )
+            )
+    else:
+        levene_statistic, levene_p_value = np.nan, np.nan
+
+        checks.append(
+            create_check(
+                "Equal variance",
+                "Could not test",
+                "warning",
+                "Levene's test could not be calculated because too few groups had enough values."
+            )
+        )
+
+    # Residual normality
+    formula = f'Q("{numeric_column}") ~ C(Q("{factor_column}"))'
+    model = ols(formula, data=clean_df).fit()
+    residuals = model.resid
+
+    residual_normality = run_shapiro_normality(residuals, alpha=alpha)
+
+    checks.append(
+        create_check(
+            "Residual normality",
+            residual_normality["status"],
+            residual_normality["status_type"],
+            residual_normality["message"]
+        )
+    )
+
+    warning_count = sum(check["Status Type"] == "warning" for check in checks)
+    error_count = sum(check["Status Type"] == "error" for check in checks)
+
+    if error_count > 0:
+        recommendation_title = "Do not run ANOVA yet"
+        recommendation_type = "error"
+        recommendation = "The selected columns do not satisfy the minimum requirements for one-way ANOVA."
+
+    elif normality_warnings > 0 or residual_normality["status_type"] == "warning":
+        recommendation_title = "Consider Kruskal-Wallis test"
+        recommendation_type = "warning"
+        recommendation = (
+            "Normality may be weak in one or more groups or in the residuals. "
+            "Consider Kruskal-Wallis as a non-parametric alternative."
+        )
+
+    elif not pd.isna(levene_p_value) and levene_p_value < alpha:
+        recommendation_title = "Use ANOVA carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "Levene's test suggests unequal variances. ANOVA can be sensitive to this, especially with unequal group sizes. "
+            "Consider Kruskal-Wallis or a robust alternative."
+        )
+
+    elif warning_count > 0:
+        recommendation_title = "ANOVA is usable with caution"
+        recommendation_type = "warning"
+        recommendation = "One-way ANOVA can be run, but check the warnings before interpreting the result."
+
+    else:
+        recommendation_title = "One-way ANOVA is appropriate"
+        recommendation_type = "success"
+        recommendation = "The main assumptions look acceptable for one-way ANOVA."
+
+    return {
+        "test": "One-way ANOVA",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "clean_df": clean_df,
+            "numeric_column": numeric_column,
+            "factor_column": factor_column,
+            "residuals": residuals,
+            "levene_statistic": levene_statistic,
+            "levene_p_value": levene_p_value,
+            "group_counts": group_counts,
+        }
+    }
+
+
+def check_two_way_anova_assumptions(df, numeric_column, factor1, factor2, alpha=0.05):
+    """
+    Checks assumptions for two-way ANOVA.
+
+    Main assumptions:
+    - Numerical outcome variable
+    - Two categorical factors
+    - Reasonable cell sizes
+    - Homogeneity of variances across factor combinations
+    - Residual normality
+    """
+
+    clean_df = _clean_anova_data(df, numeric_column, [factor1, factor2])
+
+    checks = []
+
+    checks.append(
+        create_check(
+            "Data structure",
+            "Numerical outcome + two categorical factors",
+            "success",
+            f"`{numeric_column}` is explained using `{factor1}`, `{factor2}`, and their interaction."
+        )
+    )
+
+    factor1_groups = clean_df[factor1].nunique()
+    factor2_groups = clean_df[factor2].nunique()
+
+    checks.append(
+        create_check(
+            "Factor levels",
+            "Factor levels detected",
+            "success",
+            f"`{factor1}` has {factor1_groups} levels and `{factor2}` has {factor2_groups} levels."
+        )
+    )
+
+    clean_df["_anova_cell"] = clean_df[factor1].astype(str) + " | " + clean_df[factor2].astype(str)
+
+    cell_counts = clean_df["_anova_cell"].value_counts()
+    smallest_cell_size = int(cell_counts.min())
+    empty_or_small_cells = int((cell_counts < 2).sum())
+
+    if smallest_cell_size < 2:
+        checks.append(
+            create_check(
+                "Cell sizes",
+                "Very small cells",
+                "warning",
+                f"At least one factor combination has only {smallest_cell_size} value(s). Two-way ANOVA may be unstable."
+            )
+        )
+    elif smallest_cell_size < 5:
+        checks.append(
+            create_check(
+                "Cell sizes",
+                "Small cell warning",
+                "warning",
+                f"The smallest factor combination has {smallest_cell_size} values. Interpret interaction effects carefully."
+            )
+        )
+    else:
+        checks.append(
+            create_check(
+                "Cell sizes",
+                "Cell sizes acceptable",
+                "success",
+                f"The smallest factor combination has {smallest_cell_size} values."
+            )
+        )
+
+    # Levene across factor combinations
+    groups = [
+        group_data[numeric_column].dropna().values
+        for _, group_data in clean_df.groupby("_anova_cell")
+        if len(group_data[numeric_column].dropna()) >= 2
+    ]
+
+    if len(groups) >= 2:
+        levene_statistic, levene_p_value = stats.levene(*groups)
+
+        if levene_p_value < alpha:
+            checks.append(
+                create_check(
+                    "Equal variance across cells",
+                    "Variance concern",
+                    "warning",
+                    f"Levene p-value = {format_number(levene_p_value)}. Variance may differ across factor combinations."
+                )
+            )
+        else:
+            checks.append(
+                create_check(
+                    "Equal variance across cells",
+                    "Equal variance acceptable",
+                    "success",
+                    f"Levene p-value = {format_number(levene_p_value)}. No strong evidence of unequal variances across cells."
+                )
+            )
+    else:
+        levene_statistic, levene_p_value = np.nan, np.nan
+
+        checks.append(
+            create_check(
+                "Equal variance across cells",
+                "Could not test",
+                "warning",
+                "Levene's test could not be calculated because too few factor combinations had enough values."
+            )
+        )
+
+    # Residual normality
+    formula = f'Q("{numeric_column}") ~ C(Q("{factor1}")) * C(Q("{factor2}"))'
+    model = ols(formula, data=clean_df).fit()
+    residuals = model.resid
+
+    residual_normality = run_shapiro_normality(residuals, alpha=alpha)
+
+    checks.append(
+        create_check(
+            "Residual normality",
+            residual_normality["status"],
+            residual_normality["status_type"],
+            residual_normality["message"]
+        )
+    )
+
+    warning_count = sum(check["Status Type"] == "warning" for check in checks)
+    error_count = sum(check["Status Type"] == "error" for check in checks)
+
+    if error_count > 0:
+        recommendation_title = "Do not run two-way ANOVA yet"
+        recommendation_type = "error"
+        recommendation = "The selected columns do not satisfy the minimum requirements for two-way ANOVA."
+
+    elif residual_normality["status_type"] == "warning" or warning_count > 0:
+        recommendation_title = "Use two-way ANOVA carefully"
+        recommendation_type = "warning"
+        recommendation = (
+            "One or more assumptions may be weak. Two-way ANOVA has no simple direct replacement like Kruskal-Wallis. "
+            "Consider transformation, robust methods, or interpret results cautiously."
+        )
+
+    else:
+        recommendation_title = "Two-way ANOVA is appropriate"
+        recommendation_type = "success"
+        recommendation = "The main assumptions look acceptable for two-way ANOVA."
+
+    return {
+        "test": "Two-way ANOVA",
+        "checks": checks,
+        "recommendation_title": recommendation_title,
+        "recommendation_type": recommendation_type,
+        "recommendation": recommendation,
+        "diagnostic_data": {
+            "clean_df": clean_df,
+            "numeric_column": numeric_column,
+            "factor1": factor1,
+            "factor2": factor2,
+            "cell_column": "_anova_cell",
+            "cell_counts": cell_counts,
+            "residuals": residuals,
+            "levene_statistic": levene_statistic,
+            "levene_p_value": levene_p_value,
+        }
+    }
+
+
+def plot_anova_group_boxplot(clean_df, numeric_column, factor_column):
+    """
+    Plotly boxplot for one-way ANOVA groups.
+    """
+
+    fig = go.Figure()
+
+    for group_name, group_data in clean_df.groupby(factor_column):
+        fig.add_trace(
+            go.Box(
+                y=group_data[numeric_column],
+                name=str(group_name),
+                boxmean=True,
+            )
+        )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"{numeric_column} by {factor_column}",
+        x_title=factor_column,
+        y_title=numeric_column,
+        height=420,
+    )
+
+    return fig
+
+
+def plot_anova_cell_boxplot(clean_df, numeric_column, cell_column):
+    """
+    Plotly boxplot for two-way ANOVA factor combinations.
+    """
+
+    fig = go.Figure()
+
+    for cell_name, cell_data in clean_df.groupby(cell_column):
+        fig.add_trace(
+            go.Box(
+                y=cell_data[numeric_column],
+                name=str(cell_name),
+                boxmean=True,
+            )
+        )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"{numeric_column} by factor combinations",
+        x_title="Factor combination",
+        y_title=numeric_column,
+        height=460,
+    )
+
+    fig.update_xaxes(tickangle=25)
+
+    return fig
+
+
+def plot_anova_residuals_qq(residuals, title="Q-Q Plot of ANOVA Residuals"):
+    """
+    Q-Q plot for ANOVA residuals.
+    """
+
+    return plot_assumption_qq(
+        residuals,
+        title=title
+    )
+
+
+def plot_anova_residual_histogram(residuals):
+    """
+    Histogram of ANOVA residuals.
+    """
+
+    return plot_assumption_histogram(
+        residuals,
+        title="Distribution of ANOVA Residuals",
+        x_label="Residuals",
+        bins=25
+    )
