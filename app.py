@@ -51,7 +51,6 @@ from utils.t_tests import (
 from utils.anova_tests import (
     run_one_way_anova,
     run_tukey_hsd,
-    plot_one_way_anova,
     run_two_way_anova,
     plot_two_way_interaction,
     get_one_way_anova_interpretation,
@@ -108,7 +107,6 @@ from utils.ui_components import (
     render_sidebar,
     render_top_bar,
     metric_card,
-    info_card,
     page_locked_message,
     result_status_card
 )
@@ -142,17 +140,6 @@ from utils.assumption_checks import (
     plot_two_proportion_counts,
 )
 
-from utils.visualizations import (
-    plot_histogram,
-    plot_boxplot,
-    plot_kde_pdf,
-    plot_cdf,
-    plot_qq,
-    plot_pmf,
-    is_discrete_numeric,
-    prepare_numeric_data,
-    get_plot_interpretation
-)
 
 from utils.smart_descriptive import (
     detect_variable_type,
@@ -226,15 +213,6 @@ if "uploaded_file_signature" not in st.session_state:
     st.session_state.uploaded_file_signature = None
 
 
-def reset_project():
-    st.session_state.step = "upload"
-    st.session_state.df = None
-    st.session_state.selected_df = None
-    st.session_state.column_summary = None
-    st.session_state.selected_columns = []
-    st.session_state.uploaded_file_name = None
-
-
 def clear_analysis_state_for_new_upload():
     """
     Clears selected dataset and analysis outputs when a new dataset is uploaded.
@@ -264,23 +242,20 @@ def clear_analysis_state_for_new_upload():
             del st.session_state[key]
 
 
-
-
-
 def render_distribution_figure(fig, key):
     """
-    Renders Plotly figures using st.plotly_chart.
-    Falls back to st.pyplot for old Matplotlib figures.
+    Renders Plotly figures consistently across the app.
     """
 
-    if hasattr(fig, "to_plotly_json"):
-        st.plotly_chart(
-            fig,
-            use_container_width=True,
-            key=key
-        )
-    else:
-        st.pyplot(fig)
+    if not hasattr(fig, "to_plotly_json"):
+        st.error("This visualization must return a Plotly figure.")
+        return
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        key=key
+    )
 
 
 def render_assumption_panel(assumption_result, panel_key):
@@ -500,10 +475,10 @@ def render_assumption_panel(assumption_result, panel_key):
                 )
 
                 st.plotly_chart(
-                    fig,
+                    fig_resid_qq,
                     use_container_width=True,
-                    key="chi_square_gof_result_plot"
-                )       
+                    key=f"{panel_key}_two_way_anova_residual_qq"
+                )
 
         # ----------------------------------------------------
         # Chi-square goodness-of-fit
@@ -522,7 +497,7 @@ def render_assumption_panel(assumption_result, panel_key):
             st.plotly_chart(
                 fig,
                 use_container_width=True,
-                key="chi_square_independence_result_plot"
+                key=f"{panel_key}_chi_square_gof_bars"
             )
 
             st.write("#### Observed vs Expected Table")
@@ -571,6 +546,113 @@ def render_assumption_panel(assumption_result, panel_key):
             st.write("#### Expected Frequency Table")
             st.dataframe(expected_table, use_container_width=True)
 
+        # ----------------------------------------------------
+        # One-sample mean z-test
+        # ----------------------------------------------------
+        elif assumption_result["test"] == "One-sample mean z-test":
+            data = diagnostic_data["data"]
+
+            plot_col1, plot_col2 = st.columns(2)
+
+            with plot_col1:
+                fig_hist = plot_assumption_histogram(
+                    data,
+                    title="Distribution of Selected Variable",
+                    x_label="Values"
+                )
+
+                st.plotly_chart(
+                    fig_hist,
+                    use_container_width=True,
+                    key=f"{panel_key}_one_sample_z_hist"
+                )
+
+            with plot_col2:
+                fig_qq = plot_assumption_qq(
+                    data,
+                    title="Q-Q Plot for Mean Z-Test"
+                )
+
+                st.plotly_chart(
+                    fig_qq,
+                    use_container_width=True,
+                    key=f"{panel_key}_one_sample_z_qq"
+                )
+
+        # ----------------------------------------------------
+        # Two-sample mean z-test
+        # ----------------------------------------------------
+        elif assumption_result["test"] == "Two-sample mean z-test":
+            group1_data = diagnostic_data["group1_data"]
+            group2_data = diagnostic_data["group2_data"]
+            group1 = diagnostic_data["group1"]
+            group2 = diagnostic_data["group2"]
+            numeric_column = diagnostic_data["numeric_column"]
+
+            fig_box = plot_independent_groups_boxplot(
+                group1_data,
+                group2_data,
+                group1,
+                group2,
+                numeric_column
+            )
+
+            st.plotly_chart(
+                fig_box,
+                use_container_width=True,
+                key=f"{panel_key}_two_sample_z_boxplot"
+            )
+
+            plot_col1, plot_col2 = st.columns(2)
+
+            with plot_col1:
+                fig_qq_1 = plot_assumption_qq(
+                    group1_data,
+                    title=f"Q-Q Plot: {group1}"
+                )
+
+                st.plotly_chart(
+                    fig_qq_1,
+                    use_container_width=True,
+                    key=f"{panel_key}_two_sample_z_qq_group1"
+                )
+
+            with plot_col2:
+                fig_qq_2 = plot_assumption_qq(
+                    group2_data,
+                    title=f"Q-Q Plot: {group2}"
+                )
+
+                st.plotly_chart(
+                    fig_qq_2,
+                    use_container_width=True,
+                    key=f"{panel_key}_two_sample_z_qq_group2"
+                )
+
+        # ----------------------------------------------------
+        # One-proportion z-test
+        # ----------------------------------------------------
+        elif assumption_result["test"] == "One-proportion z-test":
+            fig_counts = plot_one_proportion_counts(diagnostic_data)
+
+            st.plotly_chart(
+                fig_counts,
+                use_container_width=True,
+                key=f"{panel_key}_one_proportion_counts"
+            )
+
+        # ----------------------------------------------------
+        # Two-proportion z-test
+        # ----------------------------------------------------
+        elif assumption_result["test"] == "Two-proportion z-test":
+            fig_counts = plot_two_proportion_counts(diagnostic_data)
+
+            st.plotly_chart(
+                fig_counts,
+                use_container_width=True,
+                key=f"{panel_key}_two_proportion_counts"
+            )
+
 # ------------------------------------------------------------
 # Header
 # ------------------------------------------------------------
@@ -615,7 +697,11 @@ if st.session_state.step == "upload":
         try:
             uploaded_file_signature = f"{uploaded_file.name}_{uploaded_file.size}"
 
-            if st.session_state.uploaded_file_signature != uploaded_file_signature:
+            is_new_upload = (
+                st.session_state.uploaded_file_signature != uploaded_file_signature
+            )
+
+            if is_new_upload:
                 clear_analysis_state_for_new_upload()
                 st.session_state.uploaded_file_signature = uploaded_file_signature
 
@@ -624,6 +710,12 @@ if st.session_state.step == "upload":
             st.session_state.df = df
             st.session_state.uploaded_file_name = uploaded_file.name
             st.session_state.column_summary = get_column_summary(df)
+
+            # Since sidebar navigation is rendered before upload processing,
+            # automatically move to Column Selection after a new upload.
+            if is_new_upload:
+                st.session_state.current_page = "Column selection"
+                st.rerun()
 
             st.success("Dataset loaded successfully.")
 
@@ -678,9 +770,6 @@ if st.session_state.step == "upload":
             st.write("### Dataset Preview")
             st.dataframe(df.head(10), use_container_width=True)
 
-            if st.button("Continue to Column Selection", type="primary"):
-                st.session_state.current_page = "Column selection"
-                st.rerun()
 
         except Exception as error:
             st.error(error)
@@ -759,7 +848,7 @@ elif st.session_state.step == "select_columns":
                         if checked:
                             selected_columns.append(column_name)
 
-        submitted = st.form_submit_button("Next: Continue with Selected Columns", type="primary")
+        submitted = st.form_submit_button("Save Selected Columns", type="primary")
 
     if submitted:
         final_selected_columns = []
@@ -777,8 +866,6 @@ elif st.session_state.step == "select_columns":
             st.session_state.selected_df = get_selected_dataframe(df, final_selected_columns)
             st.session_state.current_page = "Dataset overview"
             st.rerun()
-
-    st.button("Back to Upload", on_click=reset_project)
 
 
 # ------------------------------------------------------------
@@ -1356,9 +1443,6 @@ if st.session_state.step == "visualizations":
     if len(numerical_columns) == 0:
         st.warning("No numerical columns found in the selected dataset.")
 
-        if st.button("Back to Descriptive Statistics"):
-            st.session_state.step = "descriptive_stats"
-            st.rerun()
 
     else:
         selected_column = st.selectbox(
@@ -1473,20 +1557,6 @@ if st.session_state.step == "visualizations":
                         "A PMF shows the probability of each discrete value."
                     )
 
-        st.divider()
-
-        col_back, col_next = st.columns([1, 2])
-
-        with col_back:
-            if st.button("Back to Descriptive Statistics"):
-                st.session_state.step = "descriptive_stats"
-                st.rerun()
-
-        with col_next:
-            if st.button("Continue to Normality Tests", type="primary"):
-                st.session_state.step = "normality_tests"
-                st.rerun()
-
 
 # ------------------------------------------------------------
 # STEP 6: Normality Tests
@@ -1512,9 +1582,6 @@ if st.session_state.step == "normality_tests":
     if len(numerical_columns) == 0:
         st.warning("No numerical columns found in the selected dataset.")
 
-        if st.button("Back to Visualizations"):
-            st.session_state.step = "visualizations"
-            st.rerun()
 
     else:
         selected_column = st.selectbox(
@@ -1590,21 +1657,6 @@ if st.session_state.step == "normality_tests":
             "Statistical tests are useful, but plots are also important. "
             "For large datasets, even small deviations from normality may become statistically significant."
         )
-
-        st.divider()
-
-        col_back, col_next = st.columns([1, 2])
-
-        with col_back:
-            if st.button("Back to Visualizations"):
-                st.session_state.step = "visualizations"
-                st.rerun()
-
-        with col_next:
-            if st.button("Continue to T-Tests", type="primary"):
-                st.session_state.step = "t_tests"
-                st.rerun()
-
 
 
 # ------------------------------------------------------------
@@ -2703,9 +2755,6 @@ if st.session_state.step == "chi_square":
     if len(categorical_columns) == 0:
         st.warning("No suitable categorical columns found. Chi-square tests need categorical variables.")
 
-        if st.button("Back to ANOVA"):
-            st.session_state.step = "anova"
-            st.rerun()
 
     else:
         alpha = st.selectbox(
@@ -2898,23 +2947,6 @@ if st.session_state.step == "chi_square":
 
                 except Exception as error:
                     st.error(error)
-
-        st.divider()
-
-        col_back, col_next = st.columns([1, 2])
-
-        with col_back:
-            if st.button("Back to ANOVA"):
-                st.session_state.step = "anova"
-                st.rerun()
-
-
-        with col_next:
-            if st.button("Continue to Z-Tests", type="primary"):
-                st.session_state.step = "z_tests"
-                st.rerun()
-
-
 
 
 # ------------------------------------------------------------
@@ -3495,25 +3527,6 @@ if st.session_state.step == "z_tests":
                             except Exception as error:
                                 st.error(error)
 
-    st.divider()
-
-    col_back, col_next = st.columns([1, 2])
-
-    with col_back:
-        if st.button("Back to Chi-Square Tests", key="ztest_back_to_chi_square"):
-            st.session_state.step = "chi_square"
-            st.rerun()
-
-    with col_next:
-        if st.button(
-            "Continue to Distribution Fitting",
-            type="primary",
-            key="ztest_continue_distribution_fitting"
-        ):
-            st.session_state.step = "distribution_fitting"
-            st.rerun()
-
-
 
 # ------------------------------------------------------------
 # STEP 11: Distribution Fitting
@@ -3539,9 +3552,6 @@ if st.session_state.step == "distribution_fitting":
     if len(numerical_columns) == 0:
         st.warning("No numerical columns found in the selected dataset.")
 
-        if st.button("Back to Z-Tests", key="dist_fit_back_no_numeric"):
-            st.session_state.step = "z_tests"
-            st.rerun()
 
     else:
         selected_column = st.selectbox(
@@ -3758,24 +3768,6 @@ if st.session_state.step == "distribution_fitting":
                             st.write(f"**MSE:** {selected_result['MSE']:.6f}")
                             st.write(f"**RMSE:** {selected_result['RMSE']:.6f}")
 
-        st.divider()
-
-        col_back, col_next = st.columns([1, 2])
-
-        with col_back:
-            if st.button("Back to Z-Tests", key="dist_fit_back_to_z_tests"):
-                st.session_state.step = "z_tests"
-                st.rerun()
-
-        with col_next:
-            if st.button(
-                "Continue to CLT Simulation",
-                type="primary",
-                key="dist_fit_continue_to_clt"
-            ):
-                st.session_state.step = "clt_simulation"
-                st.rerun()
-
 
 # ------------------------------------------------------------
 # STEP 12: Central Limit Theorem Simulation
@@ -3801,9 +3793,6 @@ if st.session_state.step == "clt_simulation":
     if len(numerical_columns) == 0:
         st.warning("No numerical columns found in the selected dataset.")
 
-        if st.button("Back to Distribution Fitting", key="clt_back_no_numeric"):
-            st.session_state.step = "distribution_fitting"
-            st.rerun()
 
     else:
         selected_column = st.selectbox(
@@ -4129,17 +4118,6 @@ if st.session_state.step == "clt_simulation":
                         st.write("- In simple terms, larger samples give more stable sample means.")
                         st.write("- This is why larger samples usually give more reliable estimates of the population mean.")
 
-        st.divider()
-
-        col_back, col_finish = st.columns([1, 2])
-
-        with col_finish:
-            if st.button(
-                "SandeepStician Complete",
-                type="primary",
-                key="toolkit_complete_button"
-            ):
-                st.success("SandeepStician completed successfully.")
 
         st.divider()
 
