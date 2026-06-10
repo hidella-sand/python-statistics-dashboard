@@ -2,16 +2,21 @@ import streamlit as st
 
 
 THEME = {
-    "bg": "#181A1F",
-    "sidebar": "#202124",
+    "bg": "#12131A",
+    "bg_2": "#181A1F",
+    "sidebar": "#17181F",
+    "sidebar_2": "#202124",
     "card": "#242529",
     "card_hover": "#2A2B31",
+    "card_soft": "#20222A",
     "border": "#3A3B40",
+    "border_soft": "rgba(255,255,255,0.08)",
     "text": "#F5F5F5",
     "muted": "#A3A3A3",
     "subtle": "#737373",
     "primary": "#7C5CFF",
     "primary_soft": "#2D275B",
+    "primary_glow": "rgba(124, 92, 255, 0.35)",
     "secondary": "#A78BFA",
     "success": "#00B894",
     "warning": "#F59E0B",
@@ -62,103 +67,363 @@ PAGE_ICONS = {
 
 def inject_global_css():
     """
-    Injects the dark Midnight Violet dashboard theme.
+    Injects a polished Midnight Violet dashboard theme.
     """
 
     st.markdown(
         f"""
         <style>
-        /* Main app background */
+        /* --------------------------------------------------
+           Global app shell
+        -------------------------------------------------- */
+
         .stApp {{
-            background-color: {THEME["bg"]};
+            background:
+                radial-gradient(circle at top left, rgba(124, 92, 255, 0.12), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(167, 139, 250, 0.10), transparent 30%),
+                {THEME["bg"]};
             color: {THEME["text"]};
         }}
 
-        /* Main content container */
         .block-container {{
-            padding-top: 1.2rem;
-            padding-bottom: 2rem;
-            max-width: 1220px;
+            padding-top: 1.15rem;
+            padding-bottom: 2.4rem;
+            max-width: 1240px;
         }}
 
-        /* Sidebar */
-        section[data-testid="stSidebar"] {{
-            background-color: {THEME["sidebar"]};
-            border-right: 1px solid {THEME["border"]};
-        }}
-
-        section[data-testid="stSidebar"] > div {{
-            padding-top: 1.1rem;
-        }}
-
-        /* Hide Streamlit default decoration spacing a little */
         header[data-testid="stHeader"] {{
             background-color: rgba(0, 0, 0, 0);
         }}
 
-        /* Headings */
         h1, h2, h3, h4 {{
             color: {THEME["text"]};
-            letter-spacing: -0.02em;
+            letter-spacing: -0.025em;
         }}
 
-        /* Text */
         label, p, span, div {{
             color: inherit;
         }}
 
-        /* Horizontal divider */
         hr {{
-            border-color: {THEME["border"]};
+            border-color: {THEME["border_soft"]};
+            margin-top: 1.2rem;
+            margin-bottom: 1.2rem;
         }}
 
-        /* Cards */
-        .stat-card {{
-            background: {THEME["card"]};
-            border: 1px solid {THEME["border"]};
+        code {{
+            background: rgba(124, 92, 255, 0.15) !important;
+            color: {THEME["secondary"]} !important;
+            border-radius: 8px !important;
+            padding: 2px 6px !important;
+        }}
+
+        /* --------------------------------------------------
+           Sidebar shell
+        -------------------------------------------------- */
+
+        section[data-testid="stSidebar"] {{
+            background:
+                linear-gradient(180deg, {THEME["sidebar"]}, {THEME["sidebar_2"]});
+            border-right: 1px solid {THEME["border_soft"]};
+        }}
+
+        section[data-testid="stSidebar"] > div {{
+            padding-top: 1.2rem;
+            padding-left: 0.95rem;
+            padding-right: 0.95rem;
+        }}
+
+        .app-logo-box {{
+            width: 44px;
+            height: 44px;
+            border-radius: 15px;
+            background:
+                radial-gradient(circle at 30% 20%, rgba(255,255,255,0.50), transparent 22%),
+                linear-gradient(135deg, {THEME["primary"]}, {THEME["secondary"]});
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 23px;
+            font-weight: 950;
+            color: white;
+            box-shadow:
+                0 12px 30px rgba(124, 92, 255, 0.35),
+                inset 0 1px 0 rgba(255,255,255,0.28);
+        }}
+
+        .sidebar-title {{
+            font-size: 20px;
+            font-weight: 900;
+            color: {THEME["text"]};
+            margin-bottom: 0px;
+            line-height: 1.05;
+            letter-spacing: -0.035em;
+        }}
+
+        .sidebar-subtitle {{
+            font-size: 12px;
+            color: {THEME["muted"]};
+            margin-top: 4px;
+            line-height: 1.35;
+        }}
+
+        .sidebar-section {{
+            font-size: 10.5px;
+            color: {THEME["subtle"]};
+            font-weight: 900;
+            margin-top: 19px;
+            margin-bottom: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }}
+
+        .nav-hint {{
+            color: {THEME["muted"]};
+            font-size: 12px;
+            line-height: 1.5;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid {THEME["border_soft"]};
             border-radius: 14px;
+            padding: 12px;
+        }}
+
+        .footer-note {{
+            color: {THEME["muted"]};
+            font-size: 12px;
+            margin-top: 8px;
+        }}
+
+        /* --------------------------------------------------
+           Custom active navigation card
+        -------------------------------------------------- */
+
+        .nav-active-card {{
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            min-height: 42px;
+            margin: 5px 0 7px 0;
+            padding: 10px 13px;
+            border-radius: 15px;
+            color: #FFFFFF;
+            font-size: 14px;
+            font-weight: 850;
+            letter-spacing: -0.01em;
+            background:
+                linear-gradient(135deg, rgba(124, 92, 255, 0.42), rgba(167, 139, 250, 0.18)),
+                rgba(255,255,255,0.035);
+            border: 1px solid rgba(167, 139, 250, 0.65);
+            box-shadow:
+                0 0 0 1px rgba(124, 92, 255, 0.16),
+                0 14px 32px rgba(124, 92, 255, 0.23),
+                inset 0 1px 0 rgba(255,255,255,0.15);
+            overflow: hidden;
+        }}
+
+        .nav-active-card::before {{
+            content: "";
+            position: absolute;
+            top: 8px;
+            bottom: 8px;
+            left: 0;
+            width: 4px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #FFFFFF, {THEME["secondary"]});
+            box-shadow: 0 0 14px rgba(167, 139, 250, 0.95);
+        }}
+
+        .nav-active-card::after {{
+            content: "";
+            position: absolute;
+            inset: -50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 34%);
+            transform: translateX(-35%);
+            pointer-events: none;
+        }}
+
+        .nav-active-icon {{
+            position: relative;
+            z-index: 1;
+            width: 25px;
+            height: 25px;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.12);
+            color: #FFFFFF;
+            font-size: 14px;
+            font-weight: 950;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.13);
+        }}
+
+        .nav-active-label {{
+            position: relative;
+            z-index: 1;
+            color: #FFFFFF;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }}
+
+        /* --------------------------------------------------
+           Sidebar buttons / inactive nav items
+        -------------------------------------------------- */
+
+        section[data-testid="stSidebar"] .stButton > button {{
+            min-height: 42px;
+            width: 100%;
+            border-radius: 15px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: {THEME["muted"]};
+            font-weight: 760;
+            font-size: 14px;
+            text-align: left;
+            justify-content: flex-start;
+            padding: 9px 13px;
+            transition: all 0.18s ease;
+            box-shadow: none;
+        }}
+
+        section[data-testid="stSidebar"] .stButton > button:hover {{
+            background: rgba(124, 92, 255, 0.13);
+            color: {THEME["text"]};
+            border-color: rgba(124, 92, 255, 0.28);
+            transform: translateX(3px);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.20);
+        }}
+
+        section[data-testid="stSidebar"] .stButton > button:disabled {{
+            opacity: 0.42;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }}
+
+        /* --------------------------------------------------
+           General buttons
+        -------------------------------------------------- */
+
+        .stButton > button {{
+            border-radius: 13px;
+            border: 1px solid {THEME["border"]};
+            background-color: {THEME["card"]};
+            color: {THEME["text"]};
+            font-weight: 760;
+            transition: all 0.16s ease-in-out;
+            min-height: 40px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        }}
+
+        .stButton > button:hover {{
+            border-color: {THEME["primary"]};
+            color: {THEME["text"]};
+            background-color: {THEME["card_hover"]};
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(0,0,0,0.20);
+        }}
+
+        .stButton > button:disabled {{
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }}
+
+        .stButton > button[kind="primary"] {{
+            background:
+                linear-gradient(135deg, {THEME["primary"]}, {THEME["secondary"]});
+            border: 1px solid rgba(167, 139, 250, 0.80);
+            color: white;
+            box-shadow:
+                0 12px 28px rgba(124, 92, 255, 0.25),
+                inset 0 1px 0 rgba(255,255,255,0.20);
+        }}
+
+        .stButton > button[kind="primary"]:hover {{
+            filter: brightness(1.06);
+            box-shadow:
+                0 16px 34px rgba(124, 92, 255, 0.34),
+                inset 0 1px 0 rgba(255,255,255,0.25);
+        }}
+
+        /* --------------------------------------------------
+           Cards
+        -------------------------------------------------- */
+
+        .stat-card {{
+            position: relative;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)),
+                {THEME["card"]};
+            border: 1px solid {THEME["border_soft"]};
+            border-radius: 18px;
             padding: 18px;
-            min-height: 104px;
+            min-height: 108px;
+            box-shadow:
+                0 16px 32px rgba(0,0,0,0.18),
+                inset 0 1px 0 rgba(255,255,255,0.045);
+            transition: all 0.18s ease;
+        }}
+
+        .stat-card:hover {{
+            transform: translateY(-2px);
+            border-color: rgba(124, 92, 255, 0.35);
+            box-shadow:
+                0 20px 40px rgba(0,0,0,0.24),
+                0 0 0 1px rgba(124, 92, 255, 0.10);
         }}
 
         .stat-card-title {{
             font-size: 13px;
             color: {THEME["muted"]};
             margin-bottom: 8px;
-            font-weight: 600;
+            font-weight: 700;
         }}
 
         .stat-card-value {{
-            font-size: 28px;
+            font-size: 29px;
             color: {THEME["text"]};
-            font-weight: 800;
+            font-weight: 900;
             line-height: 1.1;
+            letter-spacing: -0.03em;
         }}
 
         .stat-card-subtitle {{
             font-size: 12px;
             color: {THEME["muted"]};
-            margin-top: 6px;
+            margin-top: 7px;
+            line-height: 1.4;
         }}
 
         .info-card {{
-            background: {THEME["card"]};
-            border: 1px solid {THEME["border"]};
-            border-radius: 14px;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)),
+                {THEME["card"]};
+            border: 1px solid {THEME["border_soft"]};
+            border-radius: 18px;
             padding: 18px;
+            box-shadow: 0 16px 32px rgba(0,0,0,0.16);
         }}
+
+        /* --------------------------------------------------
+           Status pills
+        -------------------------------------------------- */
 
         .status-pill {{
             display: inline-flex;
             align-items: center;
             gap: 8px;
             border-radius: 999px;
-            padding: 6px 12px;
-            background: {THEME["card"]};
-            border: 1px solid {THEME["border"]};
+            padding: 7px 13px;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid {THEME["border_soft"]};
             color: {THEME["muted"]};
             font-size: 13px;
-            font-weight: 650;
+            font-weight: 750;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.14);
         }}
 
         .status-dot {{
@@ -170,90 +435,27 @@ def inject_global_css():
 
         .dot-success {{
             background: {THEME["success"]};
-            box-shadow: 0 0 8px {THEME["success"]};
+            box-shadow: 0 0 12px {THEME["success"]};
         }}
 
         .dot-warning {{
             background: {THEME["warning"]};
-            box-shadow: 0 0 8px {THEME["warning"]};
+            box-shadow: 0 0 12px {THEME["warning"]};
         }}
 
         .dot-error {{
             background: {THEME["error"]};
-            box-shadow: 0 0 8px {THEME["error"]};
+            box-shadow: 0 0 12px {THEME["error"]};
         }}
 
-        .app-logo-box {{
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, {THEME["primary"]}, {THEME["secondary"]});
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            font-weight: 900;
-            color: white;
-        }}
+        /* --------------------------------------------------
+           Inputs
+        -------------------------------------------------- */
 
-        .sidebar-title {{
-            font-size: 19px;
-            font-weight: 850;
-            color: {THEME["text"]};
-            margin-bottom: 0px;
-            line-height: 1.1;
-        }}
-
-        .sidebar-subtitle {{
-            font-size: 12px;
-            color: {THEME["muted"]};
-            margin-top: 2px;
-        }}
-
-        .sidebar-section {{
-            font-size: 11px;
-            color: {THEME["subtle"]};
-            font-weight: 800;
-            margin-top: 18px;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }}
-
-        /* Buttons */
-        .stButton > button {{
-            border-radius: 12px;
-            border: 1px solid {THEME["border"]};
-            background-color: {THEME["card"]};
-            color: {THEME["text"]};
-            font-weight: 700;
-            transition: 0.15s ease-in-out;
-            min-height: 40px;
-        }}
-
-        .stButton > button:hover {{
-            border-color: {THEME["primary"]};
-            color: {THEME["text"]};
-            background-color: {THEME["card_hover"]};
-        }}
-
-        .stButton > button:disabled {{
-            opacity: 0.45;
-            cursor: not-allowed;
-        }}
-
-        /* Primary buttons */
-        .stButton > button[kind="primary"] {{
-            background: linear-gradient(135deg, {THEME["primary"]}, {THEME["secondary"]});
-            border: 1px solid {THEME["primary"]};
-            color: white;
-        }}
-
-        /* Inputs */
         div[data-baseweb="select"] > div {{
             background-color: {THEME["card"]};
             border-color: {THEME["border"]};
-            border-radius: 12px;
+            border-radius: 13px;
         }}
 
         .stTextInput input,
@@ -261,73 +463,109 @@ def inject_global_css():
             background-color: {THEME["card"]};
             border: 1px solid {THEME["border"]};
             color: {THEME["text"]};
-            border-radius: 12px;
+            border-radius: 13px;
         }}
 
-        /* Sliders */
+        .stTextInput input:focus,
+        .stNumberInput input:focus {{
+            border-color: {THEME["primary"]};
+            box-shadow: 0 0 0 1px {THEME["primary_glow"]};
+        }}
+
         .stSlider {{
             color: {THEME["primary"]};
         }}
 
-        /* Dataframes */
+        /* --------------------------------------------------
+           Dataframes / expanders / alerts
+        -------------------------------------------------- */
+
         div[data-testid="stDataFrame"] {{
-            border-radius: 14px;
+            border-radius: 16px;
             overflow: hidden;
-            border: 1px solid {THEME["border"]};
+            border: 1px solid {THEME["border_soft"]};
+            box-shadow: 0 14px 28px rgba(0,0,0,0.14);
         }}
 
-        /* Expander */
         details {{
-            background-color: {THEME["card"]} !important;
-            border: 1px solid {THEME["border"]} !important;
-            border-radius: 14px !important;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+                {THEME["card"]} !important;
+            border: 1px solid {THEME["border_soft"]} !important;
+            border-radius: 16px !important;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.12);
         }}
 
-        /* Tabs */
+        div[data-testid="stAlert"] {{
+            border-radius: 15px;
+            border: 1px solid {THEME["border_soft"]};
+            box-shadow: 0 12px 26px rgba(0,0,0,0.12);
+        }}
+
+        section[data-testid="stFileUploaderDropzone"] {{
+            background:
+                linear-gradient(180deg, rgba(124, 92, 255, 0.10), rgba(255,255,255,0.02)),
+                {THEME["card"]};
+            border: 1px dashed rgba(167, 139, 250, 0.45);
+            border-radius: 20px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }}
+
+        /* --------------------------------------------------
+           Tabs — professional active highlight
+        -------------------------------------------------- */
+
         .stTabs [data-baseweb="tab-list"] {{
-            gap: 8px;
+            gap: 9px;
+            background: rgba(255,255,255,0.025);
+            padding: 7px;
+            border: 1px solid {THEME["border_soft"]};
+            border-radius: 999px;
+            width: fit-content;
+            max-width: 100%;
+            overflow-x: auto;
         }}
 
         .stTabs [data-baseweb="tab"] {{
-            background-color: {THEME["card"]};
+            background-color: transparent;
             border-radius: 999px;
-            border: 1px solid {THEME["border"]};
-            padding: 8px 18px;
+            border: 1px solid transparent;
+            padding: 9px 18px;
             color: {THEME["muted"]};
-            font-weight: 700;
+            font-weight: 800;
+            transition: all 0.16s ease;
         }}
 
-        .stTabs [aria-selected="true"] {{
-            background-color: {THEME["primary_soft"]};
-            border-color: {THEME["primary"]};
+        .stTabs [data-baseweb="tab"]:hover {{
+            background: rgba(124, 92, 255, 0.13);
             color: {THEME["text"]};
         }}
 
-        /* Alerts */
-        div[data-testid="stAlert"] {{
+        .stTabs [aria-selected="true"] {{
+            background:
+                linear-gradient(135deg, rgba(124, 92, 255, 0.55), rgba(167, 139, 250, 0.28));
+            border-color: rgba(167, 139, 250, 0.65);
+            color: #FFFFFF;
+            box-shadow:
+                0 10px 24px rgba(124, 92, 255, 0.20),
+                inset 0 1px 0 rgba(255,255,255,0.16);
+        }}
+
+        .stTabs [aria-selected="true"] p {{
+            color: #FFFFFF !important;
+        }}
+
+        /* --------------------------------------------------
+           Radio / checkbox little polish
+        -------------------------------------------------- */
+
+        div[role="radiogroup"] label,
+        .stCheckbox label {{
+            background: rgba(255,255,255,0.018);
             border-radius: 12px;
-            border: 1px solid {THEME["border"]};
+            padding: 4px 6px;
         }}
 
-        /* File uploader */
-        section[data-testid="stFileUploaderDropzone"] {{
-            background-color: {THEME["card"]};
-            border: 1px dashed {THEME["border"]};
-            border-radius: 16px;
-        }}
-
-        /* Sidebar navigation active/inactive text markers */
-        .nav-hint {{
-            color: {THEME["muted"]};
-            font-size: 12px;
-            line-height: 1.5;
-        }}
-
-        .footer-note {{
-            color: {THEME["muted"]};
-            font-size: 12px;
-            margin-top: 8px;
-        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -350,8 +588,10 @@ def _safe_page_key(page_name):
 
 def _nav_button(page_name, disabled=False):
     """
-    Sidebar navigation button.
-    Stores the selected page in st.session_state.current_page.
+    Sidebar navigation item.
+
+    Active page is rendered as a custom highlighted card.
+    Inactive pages are rendered as Streamlit buttons.
     """
 
     current_page = st.session_state.get("current_page", "Import dataset")
@@ -360,9 +600,18 @@ def _nav_button(page_name, disabled=False):
     icon = PAGE_ICONS.get(page_name, "")
 
     if is_active:
-        button_label = f"▸  {icon}  {page_name}"
-    else:
-        button_label = f"   {icon}  {page_name}"
+        st.markdown(
+            f"""
+            <div class="nav-active-card">
+                <span class="nav-active-icon">{icon}</span>
+                <span class="nav-active-label">{page_name}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+
+    button_label = f"{icon}  {page_name}"
 
     if st.button(
         button_label,
@@ -388,9 +637,6 @@ def render_sidebar():
 
     locked_pages = ANALYSIS_PAGES + DIAGNOSTIC_PAGES
 
-    # Safety rule:
-    # If selected dataset disappears while user is on an analysis page,
-    # move user back to the correct setup page.
     if st.session_state.current_page in locked_pages and not has_selected_dataset:
         st.session_state.current_page = "Column selection" if has_dataset else "Import dataset"
 
@@ -449,7 +695,7 @@ def render_sidebar():
         else:
             st.info("No file loaded")
 
-        if st.button("Reset project", use_container_width=True):
+        if st.button("Reset project", use_container_width=True, key="reset_project_sidebar"):
             reset_dataset_state()
             st.session_state.current_page = "Import dataset"
             st.rerun()
@@ -468,20 +714,23 @@ def reset_dataset_state():
         "column_summary",
         "selected_columns",
         "uploaded_file_name",
+        "uploaded_file_signature",
 
-        # Distribution fitting session state
         "dist_fit_results",
         "dist_fit_data",
         "dist_fit_column_name",
         "dist_fit_bins_used",
+        "dist_fit_signature",
 
-        # CLT session state
         "clt_data",
         "clt_sample_means",
         "clt_column_name",
         "clt_sample_size_used",
         "clt_number_of_samples_used",
         "clt_bins_used",
+        "clt_signature",
+        "clt_sample_size_results",
+        "clt_comparison_signature",
     ]
 
     for key in keys_to_clear:
@@ -500,7 +749,43 @@ def render_top_bar(page_title):
     left, right = st.columns([0.62, 0.38])
 
     with left:
-        st.markdown(f"### {page_title}")
+        st.markdown(
+            f"""
+            <div style="
+                display:flex;
+                align-items:center;
+                gap:10px;
+                margin-bottom:2px;
+            ">
+                <div style="
+                    width:8px;
+                    height:28px;
+                    border-radius:999px;
+                    background:linear-gradient(180deg, {THEME["primary"]}, {THEME["secondary"]});
+                    box-shadow:0 0 18px rgba(124,92,255,0.55);
+                "></div>
+                <div>
+                    <div style="
+                        font-size:27px;
+                        font-weight:900;
+                        color:{THEME["text"]};
+                        letter-spacing:-0.04em;
+                        line-height:1.05;
+                    ">
+                        {page_title}
+                    </div>
+                    <div style="
+                        font-size:13px;
+                        color:{THEME["muted"]};
+                        margin-top:3px;
+                    ">
+                        SandeepStician statistical workspace
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with right:
         if has_selected_dataset:
@@ -508,7 +793,7 @@ def render_top_bar(page_title):
             cols = st.session_state.selected_df.shape[1]
             st.markdown(
                 f"""
-                <div style="text-align:right;">
+                <div style="text-align:right; margin-top:8px;">
                     <span class="status-pill">
                         <span class="status-dot dot-success"></span>
                         {rows:,} rows · {cols} columns selected
@@ -523,7 +808,7 @@ def render_top_bar(page_title):
             cols = st.session_state.df.shape[1]
             st.markdown(
                 f"""
-                <div style="text-align:right;">
+                <div style="text-align:right; margin-top:8px;">
                     <span class="status-pill">
                         <span class="status-dot dot-warning"></span>
                         {rows:,} rows · {cols} columns detected
@@ -536,7 +821,7 @@ def render_top_bar(page_title):
         else:
             st.markdown(
                 """
-                <div style="text-align:right;">
+                <div style="text-align:right; margin-top:8px;">
                     <span class="status-pill">
                         <span class="status-dot dot-warning"></span>
                         No file loaded
@@ -576,8 +861,8 @@ def info_card(title, lines):
     st.markdown(
         f"""
         <div class="info-card">
-            <h4 style="margin-top:0;">{title}</h4>
-            <ul style="margin-bottom:0; color:{THEME["muted"]};">
+            <h4 style="margin-top:0; margin-bottom:10px;">{title}</h4>
+            <ul style="margin-bottom:0; color:{THEME["muted"]}; line-height:1.55;">
                 {bullet_lines}
             </ul>
         </div>
@@ -609,20 +894,23 @@ def result_status_card(title, status, message, status_type="info"):
     st.markdown(
         f"""
         <div style="
-            background:{THEME["card"]};
-            border:1px solid {THEME["border"]};
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)),
+                {THEME["card"]};
+            border:1px solid {THEME["border_soft"]};
             border-left:5px solid {color};
-            border-radius:14px;
-            padding:16px;
-            margin-bottom:10px;
+            border-radius:18px;
+            padding:17px;
+            margin-bottom:12px;
+            box-shadow:0 16px 32px rgba(0,0,0,0.16);
         ">
-            <div style="font-size:13px; color:{THEME["muted"]}; font-weight:700;">
+            <div style="font-size:13px; color:{THEME["muted"]}; font-weight:800;">
                 {title}
             </div>
-            <div style="font-size:20px; color:{color}; font-weight:850; margin-top:4px;">
+            <div style="font-size:21px; color:{color}; font-weight:900; margin-top:4px; letter-spacing:-0.03em;">
                 {status}
             </div>
-            <div style="font-size:13px; color:{THEME["muted"]}; margin-top:6px; line-height:1.5;">
+            <div style="font-size:13px; color:{THEME["muted"]}; margin-top:7px; line-height:1.55;">
                 {message}
             </div>
         </div>
@@ -649,24 +937,28 @@ def selected_column_card(column, dtype_text, unique_count, missing_count, badge=
 
     return f"""
     <div style="
-        border: 1px solid {THEME["border"]};
-        background: {THEME["card"]};
-        border-radius: 14px;
+        border: 1px solid {THEME["border_soft"]};
+        background:
+            linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)),
+            {THEME["card"]};
+        border-radius: 18px;
         padding: 16px;
-        min-height: 125px;
+        min-height: 130px;
+        box-shadow: 0 14px 28px rgba(0,0,0,0.14);
     ">
-        <div style="font-weight:800; font-size:16px; color:{THEME["text"]}; margin-bottom:8px;">
+        <div style="font-weight:900; font-size:16px; color:{THEME["text"]}; margin-bottom:8px;">
             {column}
         </div>
         <div style="
             display:inline-block;
-            padding:4px 9px;
+            padding:5px 10px;
             border-radius:999px;
             background:{badge_color}22;
             color:{badge_color};
             font-size:12px;
-            font-weight:800;
+            font-weight:850;
             margin-bottom:8px;
+            border:1px solid {badge_color}44;
         ">
             {badge}
         </div>
@@ -695,9 +987,9 @@ def render_card_grid(card_html_list, min_width=220):
         <div style="
             display:grid;
             grid-template-columns: repeat(auto-fit, minmax({min_width}px, 1fr));
-            gap: 14px;
+            gap: 15px;
             margin-top: 12px;
-            margin-bottom: 28px;
+            margin-bottom: 30px;
         ">
             {cards}
         </div>
