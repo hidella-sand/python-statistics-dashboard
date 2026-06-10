@@ -401,8 +401,8 @@ def render_sidebar():
             st.markdown('<div class="app-logo-box">Σ</div>', unsafe_allow_html=True)
 
         with col_title:
-            st.markdown('<div class="sidebar-title">StatKit</div>', unsafe_allow_html=True)
-            st.markdown('<div class="sidebar-subtitle">Statistical toolkit</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sidebar-title">SandeepStician</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sidebar-subtitle">Smart statistics toolkit</div>', unsafe_allow_html=True)
 
         st.divider()
 
