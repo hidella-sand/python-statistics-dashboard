@@ -5,23 +5,30 @@ import plotly.graph_objects as go
 
 
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    # User-selected professional, color-blind-friendly palette
+    "primary": "#56B4E9",      # sky blue
+    "secondary": "#D55E00",    # vermillion
+    "green": "#009E73",        # bluish green
+    "warning": "#E69F00",      # warm orange
+
+    # Supporting UI/chart colors
+    "blue": "#56B4E9",
+    "error": "#D55E00",
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "border": "#D1D5DB",
+    "soft_blue": "rgba(86, 180, 233, 0.24)",
+    "soft_green": "rgba(0, 158, 115, 0.18)",
+    "soft_orange": "rgba(230, 159, 0, 0.18)",
 }
 
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=500):
     """
-    Applies the dark dashboard theme to Plotly figures.
+    Applies a soft professional Plotly theme to figures.
     """
 
     fig.update_layout(
@@ -44,6 +51,11 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=500):
             "xanchor": "right",
             "x": 1,
             "font": {"color": PLOT_COLORS["muted"]},
+        },
+        hoverlabel={
+            "bgcolor": "#FFFFFF",
+            "bordercolor": PLOT_COLORS["border"],
+            "font": {"color": PLOT_COLORS["text"]},
         },
     )
 
@@ -233,9 +245,9 @@ def plot_original_distribution(data, column, bins=30):
             name="Original Data",
             marker={
                 "color": PLOT_COLORS["primary"],
-                "opacity": 0.65,
+                "opacity": 0.72,
                 "line": {
-                    "color": PLOT_COLORS["grid"],
+                    "color": PLOT_COLORS["border"],
                     "width": 1,
                 },
             },
@@ -285,9 +297,9 @@ def plot_sampling_distribution(
             name="Sample Means",
             marker={
                 "color": PLOT_COLORS["primary"],
-                "opacity": 0.55,
+                "opacity": 0.62,
                 "line": {
-                    "color": PLOT_COLORS["grid"],
+                    "color": PLOT_COLORS["border"],
                     "width": 1,
                 },
             },
@@ -393,11 +405,9 @@ def plot_sample_size_comparison(sample_size_results):
 
     color_cycle = [
         PLOT_COLORS["primary"],
+        PLOT_COLORS["secondary"],
         PLOT_COLORS["green"],
         PLOT_COLORS["warning"],
-        PLOT_COLORS["blue"],
-        PLOT_COLORS["secondary"],
-        PLOT_COLORS["error"],
     ]
 
     for index, (sample_size, sample_means) in enumerate(sample_size_results.items()):

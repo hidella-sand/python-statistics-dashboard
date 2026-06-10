@@ -3,18 +3,28 @@ import numpy as np
 import plotly.graph_objects as go
 
 
+# ------------------------------------------------------------
+# Soft professional chart palette
+# User-selected core colors:
+# Sky blue, vermillion, bluish green, warm orange
+# ------------------------------------------------------------
+
+CHART_PALETTE = ["#56B4E9", "#D55E00", "#009E73", "#E69F00"]
+
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    "primary": "#56B4E9",       # Sky blue
+    "secondary": "#D55E00",     # Vermillion
+    "green": "#009E73",         # Bluish green
+    "warning": "#E69F00",       # Warm orange
+    "blue": "#56B4E9",
+    "orange": "#E69F00",
+    "error": "#CC3311",
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "axis": "#CBD5E1",
+    "text": "#1F2937",
+    "muted": "#64748B",
 }
 
 
@@ -226,7 +236,7 @@ def create_categorical_summary(df, column):
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
     """
-    Applies the app dark theme to Plotly charts.
+    Applies the soft professional SandeepStician chart theme to Plotly charts.
     """
 
     fig.update_layout(
@@ -236,11 +246,11 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
             "xanchor": "left",
             "font": {"size": 18, "color": PLOT_COLORS["text"]},
         },
-        paper_bgcolor=PLOT_COLORS["bg"],
+        paper_bgcolor=PLOT_COLORS["card"],
         plot_bgcolor=PLOT_COLORS["card"],
         font={"color": PLOT_COLORS["text"], "family": "Arial"},
         height=height,
-        margin={"l": 45, "r": 25, "t": 60, "b": 45},
+        margin={"l": 55, "r": 30, "t": 65, "b": 55},
         hovermode="closest",
         legend={
             "orientation": "h",
@@ -256,7 +266,7 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
         title_text=x_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
     )
@@ -265,7 +275,7 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
         title_text=y_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
     )
@@ -273,20 +283,31 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
     return fig
 
 
+def _category_colors(number_of_categories):
+    """
+    Returns repeating colors from the approved chart palette.
+    """
+
+    return [CHART_PALETTE[i % len(CHART_PALETTE)] for i in range(number_of_categories)]
+
+
 def plot_categorical_bar(frequency_table, column):
     """
     Creates an interactive bar chart for categorical data.
     """
 
+    categories = frequency_table["Category"].astype(str)
+    colors = _category_colors(len(categories))
+
     fig = go.Figure()
 
     fig.add_trace(
         go.Bar(
-            x=frequency_table["Category"].astype(str),
+            x=categories,
             y=frequency_table["Count"],
             marker={
-                "color": PLOT_COLORS["secondary"],
-                "line": {"color": PLOT_COLORS["bg"], "width": 1},
+                "color": colors,
+                "line": {"color": "#FFFFFF", "width": 1},
             },
             hovertemplate=(
                 "Category: %{x}<br>"
@@ -302,9 +323,10 @@ def plot_categorical_bar(frequency_table, column):
         x_title=column,
         y_title="Count",
         height=420,
-        
     )
+
     fig.update_xaxes(type="category")
+
     return fig
 
 
@@ -313,15 +335,18 @@ def plot_categorical_percentage_bar(frequency_table, column):
     Creates an interactive percentage bar chart.
     """
 
+    categories = frequency_table["Category"].astype(str)
+    colors = _category_colors(len(categories))
+
     fig = go.Figure()
 
     fig.add_trace(
         go.Bar(
-            x=frequency_table["Category"].astype(str),
+            x=categories,
             y=frequency_table["Percentage"],
             marker={
-                "color": PLOT_COLORS["primary"],
-                "line": {"color": PLOT_COLORS["bg"], "width": 1},
+                "color": colors,
+                "line": {"color": "#FFFFFF", "width": 1},
             },
             hovertemplate=(
                 "Category: %{x}<br>"
@@ -337,8 +362,8 @@ def plot_categorical_percentage_bar(frequency_table, column):
         x_title=column,
         y_title="Percentage",
         height=420,
-        
     )
+
     fig.update_xaxes(type="category")
     fig.update_yaxes(range=[0, max(frequency_table["Percentage"]) * 1.20])
 
@@ -351,24 +376,22 @@ def plot_categorical_donut(frequency_table, column):
     Best for columns with a small number of categories.
     """
 
+    categories = frequency_table["Category"].astype(str)
+    colors = _category_colors(len(categories))
+
     fig = go.Figure()
 
     fig.add_trace(
         go.Pie(
-            labels=frequency_table["Category"].astype(str),
+            labels=categories,
             values=frequency_table["Count"],
-            hole=0.55,
+            hole=0.56,
             marker={
-                "colors": [
-                    PLOT_COLORS["primary"],
-                    PLOT_COLORS["secondary"],
-                    PLOT_COLORS["blue"],
-                    PLOT_COLORS["green"],
-                    PLOT_COLORS["warning"],
-                    PLOT_COLORS["error"],
-                ]
+                "colors": colors,
+                "line": {"color": "#FFFFFF", "width": 2},
             },
             textinfo="label+percent",
+            textfont={"color": PLOT_COLORS["text"]},
             hovertemplate=(
                 "Category: %{label}<br>"
                 "Count: %{value}<br>"
@@ -382,6 +405,18 @@ def plot_categorical_donut(frequency_table, column):
         fig,
         title=f"Category Share for {column}",
         height=420,
+    )
+
+    fig.update_layout(
+        showlegend=True,
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": -0.10,
+            "xanchor": "center",
+            "x": 0.5,
+            "font": {"color": PLOT_COLORS["muted"]},
+        },
     )
 
     return fig

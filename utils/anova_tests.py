@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
@@ -11,23 +10,39 @@ import plotly.graph_objects as go
 
 
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    # User-selected Okabe-Ito inspired palette
+    "blue": "#56B4E9",
+    "vermillion": "#D55E00",
+    "green": "#009E73",
+    "orange": "#E69F00",
+
+    # Semantic aliases used by the existing code
+    "primary": "#56B4E9",
+    "secondary": "#D55E00",
+    "success": "#009E73",
+    "warning": "#E69F00",
+    "error": "#D55E00",
+
+    # Soft professional chart shell
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "axis": "#CBD5E1",
+    "text": "#1F2937",
+    "muted": "#64748B",
 }
+
+COLOR_SEQUENCE = [
+    PLOT_COLORS["blue"],
+    PLOT_COLORS["vermillion"],
+    PLOT_COLORS["green"],
+    PLOT_COLORS["orange"],
+]
 
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
     """
-    Applies dark dashboard theme to Plotly figures.
+    Applies a soft professional light theme to Plotly figures.
     """
 
     fig.update_layout(
@@ -35,21 +50,37 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
             "text": title if title else "",
             "x": 0.02,
             "xanchor": "left",
-            "font": {"size": 18, "color": PLOT_COLORS["text"]},
+            "font": {
+                "size": 18,
+                "color": PLOT_COLORS["text"],
+                "family": "Arial",
+            },
         },
         paper_bgcolor=PLOT_COLORS["bg"],
         plot_bgcolor=PLOT_COLORS["card"],
-        font={"color": PLOT_COLORS["text"], "family": "Arial"},
+        font={
+            "color": PLOT_COLORS["text"],
+            "family": "Arial",
+        },
         height=height,
-        margin={"l": 45, "r": 25, "t": 60, "b": 45},
+        margin={
+            "l": 50,
+            "r": 25,
+            "t": 65,
+            "b": 50,
+        },
         hovermode="closest",
+        colorway=COLOR_SEQUENCE,
         legend={
             "orientation": "h",
             "yanchor": "bottom",
             "y": 1.02,
             "xanchor": "right",
             "x": 1,
-            "font": {"color": PLOT_COLORS["muted"]},
+            "font": {
+                "color": PLOT_COLORS["muted"],
+            },
+            "bgcolor": "rgba(255,255,255,0)",
         },
     )
 
@@ -57,22 +88,27 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
         title_text=x_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
+        mirror=False,
     )
 
     fig.update_yaxes(
         title_text=y_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
+        mirror=False,
     )
 
     return fig
-
 
 
 
@@ -232,30 +268,45 @@ def run_tukey_hsd(df, numeric_column, factor_column, alpha=0.05):
 
 def plot_one_way_anova(df, numeric_column, factor_column):
     """
-    Boxplot for one-way ANOVA.
+    Plotly boxplot for one-way ANOVA groups.
     """
 
     anova_df = prepare_anova_data(df, numeric_column, [factor_column])
 
+    fig = go.Figure()
+
     group_names = sorted(anova_df[factor_column].unique())
-    group_data = [
-        anova_df[anova_df[factor_column] == group][numeric_column]
-        for group in group_names
-    ]
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    for index, group_name in enumerate(group_names):
+        group_values = anova_df[anova_df[factor_column] == group_name][numeric_column]
 
-    ax.boxplot(group_data, tick_labels=group_names)
+        fig.add_trace(
+            go.Box(
+                y=group_values,
+                name=str(group_name),
+                boxmean=True,
+                marker_color=COLOR_SEQUENCE[index % len(COLOR_SEQUENCE)],
+                line_color=COLOR_SEQUENCE[index % len(COLOR_SEQUENCE)],
+                fillcolor="rgba(86, 180, 233, 0.18)",
+                hovertemplate=(
+                    f"{factor_column}: {group_name}<br>"
+                    f"{numeric_column}: %{{y:.4f}}"
+                    "<extra></extra>"
+                ),
+            )
+        )
 
-    ax.set_title(f"{numeric_column} by {factor_column}", fontsize=12)
-    ax.set_xlabel(factor_column)
-    ax.set_ylabel(numeric_column)
-    ax.grid(True, alpha=0.3)
+    fig = apply_plotly_theme(
+        fig,
+        title=f"{numeric_column} by {factor_column}",
+        x_title=factor_column,
+        y_title=numeric_column,
+        height=430,
+    )
 
-    plt.xticks(rotation=25)
+    fig.update_xaxes(type="category", tickangle=25)
 
     return fig
-
 
 # ------------------------------------------------------------
 # Two-way ANOVA
@@ -369,14 +420,7 @@ def plot_two_way_interaction(df, numeric_column, factor1, factor2):
 
     factor2_levels = summary_df[factor2].unique().tolist()
 
-    color_palette = [
-        PLOT_COLORS["primary"],
-        PLOT_COLORS["secondary"],
-        PLOT_COLORS["blue"],
-        PLOT_COLORS["green"],
-        PLOT_COLORS["warning"],
-        PLOT_COLORS["error"],
-    ]
+    color_palette = COLOR_SEQUENCE
 
     for index, factor2_level in enumerate(factor2_levels):
         subset = summary_df[summary_df[factor2] == factor2_level]

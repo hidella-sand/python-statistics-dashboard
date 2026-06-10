@@ -4,18 +4,25 @@ import plotly.graph_objects as go
 from scipy import stats
 
 
+CHART_PALETTE = ["#56B4E9", "#D55E00", "#009E73", "#E69F00"]
+
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    "primary": "#56B4E9",       # sky blue
+    "secondary": "#D55E00",     # vermillion
+    "green": "#009E73",         # bluish green
+    "warning": "#E69F00",       # warm orange
+    "error": "#D55E00",
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#D9E2EC",
+    "axis": "#CBD5E1",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "bar_line": "#FFFFFF",
+    "soft_primary": "rgba(86, 180, 233, 0.24)",
+    "soft_secondary": "rgba(213, 94, 0, 0.20)",
+    "soft_green": "rgba(0, 158, 115, 0.20)",
+    "soft_warning": "rgba(230, 159, 0, 0.22)",
 }
 
 
@@ -75,7 +82,7 @@ def interpret_p_value(p_value, alpha=0.05):
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
     """
-    Applies dashboard dark theme to Plotly figure.
+    Applies the soft professional SandeepStician Plotly theme.
     """
 
     fig.update_layout(
@@ -83,13 +90,13 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
             "text": title if title else "",
             "x": 0.02,
             "xanchor": "left",
-            "font": {"size": 18, "color": PLOT_COLORS["text"]},
+            "font": {"size": 18, "color": PLOT_COLORS["text"], "family": "Arial"},
         },
         paper_bgcolor=PLOT_COLORS["bg"],
         plot_bgcolor=PLOT_COLORS["card"],
         font={"color": PLOT_COLORS["text"], "family": "Arial"},
         height=height,
-        margin={"l": 45, "r": 25, "t": 60, "b": 45},
+        margin={"l": 55, "r": 30, "t": 62, "b": 52},
         hovermode="closest",
         legend={
             "orientation": "h",
@@ -98,25 +105,38 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
             "xanchor": "right",
             "x": 1,
             "font": {"color": PLOT_COLORS["muted"]},
+            "bgcolor": "rgba(255,255,255,0)",
         },
     )
 
     fig.update_xaxes(
         title_text=x_title,
         gridcolor=PLOT_COLORS["grid"],
-        zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["axis"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
+        mirror=False,
     )
 
     fig.update_yaxes(
         title_text=y_title,
         gridcolor=PLOT_COLORS["grid"],
-        zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["axis"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
+        mirror=False,
+    )
+
+    fig.update_traces(
+        selector=dict(type="box"),
+        line={"width": 2},
+        whiskerwidth=0.65,
     )
 
     return fig
@@ -254,6 +274,8 @@ def plot_mannwhitney_u(result):
             y=group1_data,
             name=str(group1),
             marker_color=PLOT_COLORS["primary"],
+            line_color=PLOT_COLORS["primary"],
+            fillcolor=PLOT_COLORS["soft_primary"],
             boxmean=True,
         )
     )
@@ -263,6 +285,8 @@ def plot_mannwhitney_u(result):
             y=group2_data,
             name=str(group2),
             marker_color=PLOT_COLORS["secondary"],
+            line_color=PLOT_COLORS["secondary"],
+            fillcolor=PLOT_COLORS["soft_secondary"],
             boxmean=True,
         )
     )
@@ -367,7 +391,7 @@ def plot_wilcoxon_signed_rank(result):
                 x=[before_column, after_column],
                 y=[row[before_column], row[after_column]],
                 mode="lines+markers",
-                line={"color": "rgba(167, 139, 250, 0.35)", "width": 1.5},
+                line={"color": "rgba(86, 180, 233, 0.28)", "width": 1.5},
                 marker={"size": 6, "color": PLOT_COLORS["primary"]},
                 showlegend=False,
                 hovertemplate="Measurement: %{x}<br>Value: %{y}<extra></extra>",
@@ -414,8 +438,8 @@ def plot_wilcoxon_differences(result):
             x=differences,
             nbinsx=25,
             marker={
-                "color": PLOT_COLORS["secondary"],
-                "line": {"color": PLOT_COLORS["bg"], "width": 1},
+                "color": PLOT_COLORS["primary"],
+                "line": {"color": PLOT_COLORS["bar_line"], "width": 1},
             },
             opacity=0.85,
             name="Differences",
@@ -527,11 +551,16 @@ def plot_kruskal_wallis(result):
 
     fig = go.Figure()
 
-    for group_name, group_data in clean_df.groupby(group_column):
+    for index, (group_name, group_data) in enumerate(clean_df.groupby(group_column)):
+        color = CHART_PALETTE[index % len(CHART_PALETTE)]
+
         fig.add_trace(
             go.Box(
                 y=group_data[numeric_column],
                 name=str(group_name),
+                marker_color=color,
+                line_color=color,
+                fillcolor="rgba(86, 180, 233, 0.16)" if index % len(CHART_PALETTE) == 0 else "rgba(213, 94, 0, 0.14)" if index % len(CHART_PALETTE) == 1 else "rgba(0, 158, 115, 0.14)" if index % len(CHART_PALETTE) == 2 else "rgba(230, 159, 0, 0.16)",
                 boxmean=True,
             )
         )
@@ -636,11 +665,16 @@ def plot_friedman_test(result):
 
     fig = go.Figure()
 
-    for column in measurement_columns:
+    for index, column in enumerate(measurement_columns):
+        color = CHART_PALETTE[index % len(CHART_PALETTE)]
+
         fig.add_trace(
             go.Box(
                 y=clean_df[column],
                 name=str(column),
+                marker_color=color,
+                line_color=color,
+                fillcolor="rgba(86, 180, 233, 0.16)" if index % len(CHART_PALETTE) == 0 else "rgba(213, 94, 0, 0.14)" if index % len(CHART_PALETTE) == 1 else "rgba(0, 158, 115, 0.14)" if index % len(CHART_PALETTE) == 2 else "rgba(230, 159, 0, 0.16)",
                 boxmean=True,
             )
         )

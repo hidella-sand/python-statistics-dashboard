@@ -5,18 +5,22 @@ import plotly.graph_objects as go
 
 
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    # SandeepStician soft professional palette
+    "primary": "#56B4E9",      # sky blue
+    "secondary": "#D55E00",    # vermillion / orange-red
+    "blue": "#56B4E9",
+    "green": "#009E73",        # bluish green
+    "warning": "#E69F00",      # warm orange
+    "error": "#D55E00",
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "border": "#DDE3EA",
 }
+
+CHART_COLORS = ["#56B4E9", "#D55E00", "#009E73", "#E69F00"]
 
 
 def format_number(value, decimals=5):
@@ -662,7 +666,7 @@ def check_paired_ttest_assumptions(df, before_column, after_column, alpha=0.05):
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=380):
     """
-    Applies a dark Plotly dashboard theme.
+    Applies the SandeepStician soft professional Plotly theme.
     """
 
     fig.update_layout(
@@ -670,13 +674,25 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=380):
             "text": title if title else "",
             "x": 0.02,
             "xanchor": "left",
-            "font": {"size": 17, "color": PLOT_COLORS["text"]},
+            "font": {
+                "size": 17,
+                "color": PLOT_COLORS["text"],
+                "family": "Arial",
+            },
         },
         paper_bgcolor=PLOT_COLORS["bg"],
         plot_bgcolor=PLOT_COLORS["card"],
-        font={"color": PLOT_COLORS["text"], "family": "Arial"},
+        font={
+            "color": PLOT_COLORS["text"],
+            "family": "Arial",
+        },
         height=height,
-        margin={"l": 45, "r": 25, "t": 55, "b": 45},
+        margin={
+            "l": 48,
+            "r": 26,
+            "t": 58,
+            "b": 48,
+        },
         hovermode="closest",
         legend={
             "orientation": "h",
@@ -684,7 +700,12 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=380):
             "y": 1.02,
             "xanchor": "right",
             "x": 1,
-            "font": {"color": PLOT_COLORS["muted"]},
+            "font": {
+                "color": PLOT_COLORS["muted"],
+            },
+            "bgcolor": "rgba(255,255,255,0.72)",
+            "bordercolor": PLOT_COLORS["border"],
+            "borderwidth": 1,
         },
     )
 
@@ -692,18 +713,31 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=380):
         title_text=x_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["border"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showgrid=True,
     )
 
     fig.update_yaxes(
         title_text=y_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["border"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showgrid=True,
+    )
+
+    fig.update_traces(
+        selector=dict(type="bar"),
+        marker_line_color="#FFFFFF",
+        marker_line_width=1.2,
+    )
+
+    fig.update_traces(
+        selector=dict(type="box"),
+        line_width=2,
     )
 
     return fig
@@ -724,7 +758,7 @@ def plot_assumption_histogram(data, title, x_label, bins=25):
             nbinsx=bins,
             marker={
                 "color": PLOT_COLORS["secondary"],
-                "line": {"color": PLOT_COLORS["bg"], "width": 1},
+                "line": {"color": "#FFFFFF", "width": 1},
             },
             opacity=0.85,
             name="Values",
@@ -1295,12 +1329,18 @@ def plot_anova_group_boxplot(clean_df, numeric_column, factor_column):
 
     fig = go.Figure()
 
-    for group_name, group_data in clean_df.groupby(factor_column):
+    for index, (group_name, group_data) in enumerate(clean_df.groupby(factor_column)):
+        color = CHART_COLORS[index % len(CHART_COLORS)]
+
         fig.add_trace(
             go.Box(
                 y=group_data[numeric_column],
                 name=str(group_name),
                 boxmean=True,
+                marker_color=color,
+                line_color=color,
+                fillcolor=color + "33",
+                hovertemplate=f"{factor_column}: {group_name}<br>{numeric_column}: %{{y}}<extra></extra>",
             )
         )
 
@@ -1322,12 +1362,18 @@ def plot_anova_cell_boxplot(clean_df, numeric_column, cell_column):
 
     fig = go.Figure()
 
-    for cell_name, cell_data in clean_df.groupby(cell_column):
+    for index, (cell_name, cell_data) in enumerate(clean_df.groupby(cell_column)):
+        color = CHART_COLORS[index % len(CHART_COLORS)]
+
         fig.add_trace(
             go.Box(
                 y=cell_data[numeric_column],
                 name=str(cell_name),
                 boxmean=True,
+                marker_color=color,
+                line_color=color,
+                fillcolor=color + "33",
+                hovertemplate=f"Cell: {cell_name}<br>{numeric_column}: %{{y}}<extra></extra>",
             )
         )
 

@@ -5,23 +5,36 @@ import plotly.graph_objects as go
 
 
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    # User-selected accessible chart palette
+    "primary": "#56B4E9",       # sky blue
+    "secondary": "#D55E00",     # vermillion
+    "green": "#009E73",         # bluish green
+    "warning": "#E69F00",       # warm orange
+    "blue": "#56B4E9",
+    "orange": "#E69F00",
+    "error": "#D55E00",
+
+    # Soft professional light chart shell
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "axis": "#CBD5E1",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "soft_blue": "#E8F5FC",
 }
+
+CHART_PALETTE = [
+    PLOT_COLORS["primary"],
+    PLOT_COLORS["secondary"],
+    PLOT_COLORS["green"],
+    PLOT_COLORS["warning"],
+]
 
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
     """
-    Applies the dark dashboard theme to Plotly figures.
+    Applies a soft professional light theme to Plotly figures.
     """
 
     fig.update_layout(
@@ -51,7 +64,7 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
         title_text=x_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
     )
@@ -60,7 +73,7 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=460):
         title_text=y_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
     )
@@ -220,9 +233,9 @@ def plot_chi_square_independence(df, column1, column2):
             x=observed_table.columns.astype(str),
             y=observed_table.index.astype(str),
             colorscale=[
-                [0, PLOT_COLORS["card"]],
-                [0.5, PLOT_COLORS["secondary"]],
-                [1, PLOT_COLORS["primary"]],
+                [0, "#F8FAFC"],
+                [0.45, PLOT_COLORS["primary"]],
+                [1, PLOT_COLORS["green"]],
             ],
             text=observed_table.values,
             texttemplate="%{text}",
@@ -408,6 +421,7 @@ def plot_goodness_of_fit(result):
             y=observed,
             name="Observed",
             marker_color=PLOT_COLORS["primary"],
+            marker_line={"color": "#FFFFFF", "width": 1},
             hovertemplate="Category: %{x}<br>Observed: %{y}<extra></extra>",
         )
     )
@@ -418,6 +432,7 @@ def plot_goodness_of_fit(result):
             y=expected,
             name="Expected",
             marker_color=PLOT_COLORS["secondary"],
+            marker_line={"color": "#FFFFFF", "width": 1},
             hovertemplate="Category: %{x}<br>Expected: %{y:.4f}<extra></extra>",
         )
     )

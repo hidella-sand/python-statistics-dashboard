@@ -1,28 +1,45 @@
 import pandas as pd
 import numpy as np
 from scipy import stats
-
 import plotly.graph_objects as go
 
 
+# ------------------------------------------------------------
+# SandeepStician chart theme
+# ------------------------------------------------------------
+
+CHART_COLORS = ["#56B4E9", "#D55E00", "#009E73", "#E69F00"]
+
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    "primary": "#56B4E9",       # Sky blue
+    "secondary": "#D55E00",     # Vermillion
+    "green": "#009E73",         # Bluish green
+    "warning": "#E69F00",       # Warm orange
+    "orange": "#E69F00",
+    "blue": "#56B4E9",
+    "error": "#C2410C",
+
+    # Soft professional light chart canvas
+    "bg": "#F7F9FC",
+    "paper": "#FFFFFF",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "axis": "#CBD5E1",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "subtle": "#9CA3AF",
+
+    # Transparent fills
+    "primary_fill": "rgba(86, 180, 233, 0.22)",
+    "secondary_fill": "rgba(213, 94, 0, 0.18)",
+    "green_fill": "rgba(0, 158, 115, 0.18)",
+    "warning_fill": "rgba(230, 159, 0, 0.20)",
 }
 
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
     """
-    Applies a modern dark dashboard style to Plotly figures.
+    Applies the soft professional SandeepStician Plotly chart theme.
     """
 
     fig.update_layout(
@@ -33,20 +50,21 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
             "font": {
                 "size": 18,
                 "color": PLOT_COLORS["text"],
+                "family": "Arial",
             },
         },
-        paper_bgcolor=PLOT_COLORS["bg"],
-        plot_bgcolor=PLOT_COLORS["card"],
+        paper_bgcolor=PLOT_COLORS["paper"],
+        plot_bgcolor=PLOT_COLORS["paper"],
         font={
             "color": PLOT_COLORS["text"],
             "family": "Arial",
         },
         height=height,
         margin={
-            "l": 45,
-            "r": 25,
-            "t": 60,
-            "b": 45,
+            "l": 55,
+            "r": 30,
+            "t": 65,
+            "b": 55,
         },
         hovermode="closest",
         legend={
@@ -57,24 +75,31 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
             "x": 1,
             "font": {
                 "color": PLOT_COLORS["muted"],
+                "size": 12,
             },
         },
     )
 
     fig.update_xaxes(
         title_text=x_title,
+        showgrid=True,
         gridcolor=PLOT_COLORS["grid"],
-        zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["axis"],
+        linecolor=PLOT_COLORS["axis"],
+        mirror=False,
+        ticks="outside",
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
     )
 
     fig.update_yaxes(
         title_text=y_title,
+        showgrid=True,
         gridcolor=PLOT_COLORS["grid"],
-        zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["axis"],
+        linecolor=PLOT_COLORS["axis"],
+        mirror=False,
+        ticks="outside",
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
     )
@@ -130,13 +155,13 @@ def plot_histogram(df, column, bins=20):
             x=clean_data,
             nbinsx=bins,
             marker={
-                "color": PLOT_COLORS["secondary"],
+                "color": PLOT_COLORS["primary"],
                 "line": {
-                    "color": PLOT_COLORS["bg"],
+                    "color": "#FFFFFF",
                     "width": 1,
                 },
             },
-            opacity=0.85,
+            opacity=0.88,
             name="Frequency",
             hovertemplate=f"{column}: %{{x}}<br>Count: %{{y}}<extra></extra>",
         )
@@ -147,20 +172,22 @@ def plot_histogram(df, column, bins=20):
 
     fig.add_vline(
         x=mean_value,
-        line_width=2,
+        line_width=2.5,
         line_dash="dash",
         line_color=PLOT_COLORS["green"],
         annotation_text="Mean",
         annotation_position="top left",
+        annotation_font_color=PLOT_COLORS["green"],
     )
 
     fig.add_vline(
         x=median_value,
-        line_width=2,
+        line_width=2.5,
         line_dash="dot",
         line_color=PLOT_COLORS["warning"],
         annotation_text="Median",
         annotation_position="top right",
+        annotation_font_color=PLOT_COLORS["warning"],
     )
 
     fig = apply_plotly_theme(
@@ -188,9 +215,15 @@ def plot_boxplot(df, column):
             x=clean_data,
             name=column,
             boxmean=True,
-            marker_color=PLOT_COLORS["primary"],
-            line_color=PLOT_COLORS["secondary"],
-            fillcolor="rgba(167, 139, 250, 0.35)",
+            marker={
+                "color": PLOT_COLORS["secondary"],
+                "opacity": 0.78,
+            },
+            line={
+                "color": PLOT_COLORS["primary"],
+                "width": 2,
+            },
+            fillcolor=PLOT_COLORS["primary_fill"],
             hovertemplate=f"{column}: %{{x}}<extra></extra>",
         )
     )
@@ -252,7 +285,7 @@ def plot_kde_pdf(df, column):
                 "width": 3,
             },
             fill="tozeroy",
-            fillcolor="rgba(124, 92, 255, 0.22)",
+            fillcolor=PLOT_COLORS["primary_fill"],
             name="Estimated PDF / KDE",
             hovertemplate=f"{column}: %{{x:.4f}}<br>Density: %{{y:.6f}}<extra></extra>",
         )
@@ -268,8 +301,12 @@ def plot_kde_pdf(df, column):
             y=[peak_y],
             mode="markers",
             marker={
-                "size": 9,
-                "color": PLOT_COLORS["green"],
+                "size": 10,
+                "color": PLOT_COLORS["secondary"],
+                "line": {
+                    "color": "#FFFFFF",
+                    "width": 1.5,
+                },
             },
             name="Peak density",
             hovertemplate=f"Peak around: %{{x:.4f}}<br>Density: %{{y:.6f}}<extra></extra>",
@@ -310,7 +347,8 @@ def plot_cdf(df, column):
             },
             marker={
                 "size": 5,
-                "color": PLOT_COLORS["secondary"],
+                "color": PLOT_COLORS["green"],
+                "opacity": 0.75,
             },
             name="Empirical CDF",
             hovertemplate=f"{column}: %{{x:.4f}}<br>CDF: %{{y:.4f}}<extra></extra>",
@@ -322,7 +360,7 @@ def plot_cdf(df, column):
     q75 = clean_data.quantile(0.75)
 
     for q_value, label, color in [
-        (q25, "25%", PLOT_COLORS["blue"]),
+        (q25, "25%", PLOT_COLORS["primary"]),
         (q50, "50% / Median", PLOT_COLORS["green"]),
         (q75, "75%", PLOT_COLORS["warning"]),
     ]:
@@ -333,6 +371,7 @@ def plot_cdf(df, column):
             line_color=color,
             annotation_text=label,
             annotation_position="top",
+            annotation_font_color=color,
         )
 
     fig = apply_plotly_theme(
@@ -376,7 +415,11 @@ def plot_qq(df, column):
             marker={
                 "size": 7,
                 "color": PLOT_COLORS["primary"],
-                "opacity": 0.85,
+                "opacity": 0.84,
+                "line": {
+                    "color": "#FFFFFF",
+                    "width": 0.8,
+                },
             },
             name="Observed quantiles",
             hovertemplate="Theoretical: %{x:.4f}<br>Observed: %{y:.4f}<extra></extra>",
@@ -389,8 +432,8 @@ def plot_qq(df, column):
             y=line_y,
             mode="lines",
             line={
-                "color": PLOT_COLORS["green"],
-                "width": 2,
+                "color": PLOT_COLORS["secondary"],
+                "width": 2.5,
                 "dash": "dash",
             },
             name=f"Reference line | R²={r_value ** 2:.4f}",
@@ -425,9 +468,9 @@ def plot_pmf(df, column):
             x=value_counts.index.astype(str),
             y=value_counts.values,
             marker={
-                "color": PLOT_COLORS["secondary"],
+                "color": PLOT_COLORS["green"],
                 "line": {
-                    "color": PLOT_COLORS["bg"],
+                    "color": "#FFFFFF",
                     "width": 1,
                 },
             },

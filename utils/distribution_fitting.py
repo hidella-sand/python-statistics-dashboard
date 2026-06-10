@@ -6,23 +6,39 @@ import plotly.graph_objects as go
 
 
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    # Main color-blind-friendly palette requested for SandeepStician
+    "primary": "#56B4E9",      # sky blue
+    "secondary": "#D55E00",    # vermillion
+    "green": "#009E73",        # bluish green
+    "warning": "#E69F00",      # warm orange
+
+    # Supporting UI/chart colors
+    "blue": "#56B4E9",
+    "orange": "#E69F00",
+    "error": "#C62828",
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "axis": "#CBD5E1",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "soft_blue": "rgba(86, 180, 233, 0.28)",
+    "soft_green": "rgba(0, 158, 115, 0.18)",
+    "soft_orange": "rgba(230, 159, 0, 0.20)",
+    "soft_red": "rgba(213, 94, 0, 0.18)",
 }
+
+CHART_PALETTE = [
+    "#56B4E9",
+    "#D55E00",
+    "#009E73",
+    "#E69F00",
+]
 
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=500):
     """
-    Applies the dark dashboard theme to Plotly figures.
+    Applies a soft professional light theme to Plotly figures.
     """
 
     fig.update_layout(
@@ -30,13 +46,25 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=500):
             "text": title if title else "",
             "x": 0.02,
             "xanchor": "left",
-            "font": {"size": 18, "color": PLOT_COLORS["text"]},
+            "font": {
+                "size": 18,
+                "color": PLOT_COLORS["text"],
+                "family": "Arial",
+            },
         },
         paper_bgcolor=PLOT_COLORS["bg"],
         plot_bgcolor=PLOT_COLORS["card"],
-        font={"color": PLOT_COLORS["text"], "family": "Arial"},
+        font={
+            "color": PLOT_COLORS["text"],
+            "family": "Arial",
+        },
         height=height,
-        margin={"l": 70, "r": 35, "t": 70, "b": 60},
+        margin={
+            "l": 70,
+            "r": 35,
+            "t": 70,
+            "b": 60,
+        },
         hovermode="closest",
         legend={
             "orientation": "h",
@@ -44,26 +72,45 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=500):
             "y": 1.02,
             "xanchor": "right",
             "x": 1,
-            "font": {"color": PLOT_COLORS["muted"]},
+            "font": {
+                "color": PLOT_COLORS["muted"],
+            },
+            "bgcolor": "rgba(255,255,255,0.75)",
+            "bordercolor": PLOT_COLORS["grid"],
+            "borderwidth": 1,
+        },
+        hoverlabel={
+            "bgcolor": "#FFFFFF",
+            "font": {
+                "color": PLOT_COLORS["text"],
+                "family": "Arial",
+            },
+            "bordercolor": PLOT_COLORS["grid"],
         },
     )
 
     fig.update_xaxes(
         title_text=x_title,
         gridcolor=PLOT_COLORS["grid"],
-        zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["axis"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
+        mirror=False,
     )
 
     fig.update_yaxes(
         title_text=y_title,
         gridcolor=PLOT_COLORS["grid"],
-        zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["axis"],
+        linecolor=PLOT_COLORS["axis"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
+        mirror=False,
     )
 
     return fig
@@ -512,7 +559,7 @@ def plot_distribution_fits(data, results, bins=30):
             name="Observed Histogram",
             marker={
                 "color": PLOT_COLORS["primary"],
-                "opacity": 0.45,
+                "opacity": 0.55,
                 "line": {
                     "color": PLOT_COLORS["grid"],
                     "width": 1
@@ -524,13 +571,7 @@ def plot_distribution_fits(data, results, bins=30):
 
     x_values = np.linspace(data_array.min(), data_array.max(), 500)
 
-    color_cycle = [
-        PLOT_COLORS["green"],
-        PLOT_COLORS["secondary"],
-        PLOT_COLORS["warning"],
-        PLOT_COLORS["blue"],
-        PLOT_COLORS["error"],
-    ]
+    color_cycle = CHART_PALETTE
 
     for index, result in enumerate(results):
         y_values = get_pdf_values(
@@ -585,7 +626,7 @@ def plot_single_distribution_fit(data, result, bins=30):
             name="Observed Histogram",
             marker={
                 "color": PLOT_COLORS["primary"],
-                "opacity": 0.45,
+                "opacity": 0.55,
                 "line": {
                     "color": PLOT_COLORS["grid"],
                     "width": 1
@@ -685,8 +726,8 @@ def plot_distribution_qq(data, result):
                 "size": 7,
                 "color": PLOT_COLORS["primary"],
                 "line": {
-                    "color": PLOT_COLORS["text"],
-                    "width": 0.5
+                    "color": "#FFFFFF",
+                    "width": 0.7
                 }
             },
             hovertemplate=(
@@ -728,7 +769,7 @@ def plot_distribution_qq(data, result):
             x=0.03,
             y=0.97,
             showarrow=False,
-            bgcolor=PLOT_COLORS["card"],
+            bgcolor="rgba(255,255,255,0.92)",
             bordercolor=PLOT_COLORS["grid"],
             borderwidth=1,
             font={"color": PLOT_COLORS["text"], "size": 13},

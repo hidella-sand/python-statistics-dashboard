@@ -1,15 +1,109 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import stats
+import plotly.graph_objects as go
+
+
+PLOT_COLORS = {
+    "primary": "#56B4E9",      # Sky blue
+    "secondary": "#D55E00",    # Vermillion
+    "green": "#009E73",        # Bluish green
+    "warning": "#E69F00",      # Warm orange
+    "error": "#D55E00",
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "axis": "#CBD5E1",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+}
+
+COLOR_SEQUENCE = [
+    PLOT_COLORS["primary"],
+    PLOT_COLORS["secondary"],
+    PLOT_COLORS["green"],
+    PLOT_COLORS["warning"],
+]
+
+
+def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=430):
+    """
+    Applies a clean, light, professional Plotly theme.
+    """
+
+    fig.update_layout(
+        title={
+            "text": title if title else "",
+            "x": 0.02,
+            "xanchor": "left",
+            "font": {
+                "size": 18,
+                "color": PLOT_COLORS["text"],
+            },
+        },
+        paper_bgcolor=PLOT_COLORS["bg"],
+        plot_bgcolor=PLOT_COLORS["card"],
+        font={
+            "color": PLOT_COLORS["text"],
+            "family": "Arial",
+        },
+        height=height,
+        margin={"l": 60, "r": 30, "t": 65, "b": 55},
+        hovermode="closest",
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1.02,
+            "xanchor": "right",
+            "x": 1,
+            "font": {"color": PLOT_COLORS["muted"]},
+        },
+    )
+
+    fig.update_xaxes(
+        title_text=x_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+        mirror=False,
+        showline=True,
+    )
+
+    fig.update_yaxes(
+        title_text=y_title,
+        gridcolor=PLOT_COLORS["grid"],
+        zerolinecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["axis"],
+        tickfont={"color": PLOT_COLORS["muted"]},
+        title_font={"color": PLOT_COLORS["muted"]},
+        mirror=False,
+        showline=True,
+    )
+
+    return fig
 
 
 def format_number(value):
     """
     Formats numbers nicely for tables and interpretations.
     """
+
     try:
-        return round(float(value), 5)
+        if pd.isna(value):
+            return "N/A"
+
+        value = float(value)
+
+        if value == 0:
+            return "0"
+
+        if abs(value) < 0.00001:
+            return f"{value:.2e}"
+
+        return round(value, 5)
+
     except Exception:
         return value
 
@@ -18,16 +112,18 @@ def interpret_p_value(p_value, alpha=0.05):
     """
     Interprets p-value using alpha.
     """
+
     if p_value < alpha:
         return "Reject H0", "There is a statistically significant result."
-    else:
-        return "Fail to Reject H0", "There is not enough evidence for a statistically significant result."
+
+    return "Fail to Reject H0", "There is not enough evidence for a statistically significant result."
 
 
 def prepare_numeric_data(df, column):
     """
     Converts selected column to numeric and removes missing values.
     """
+
     data = pd.to_numeric(df[column], errors="coerce").dropna()
 
     if data.empty:
@@ -40,6 +136,7 @@ def two_tailed_p_value_from_z(z_statistic):
     """
     Calculates two-tailed p-value from z-statistic.
     """
+
     return 2 * (1 - stats.norm.cdf(abs(z_statistic)))
 
 
@@ -65,7 +162,6 @@ def run_one_sample_ztest(df, numeric_column, hypothesized_mean, population_std, 
 
     sample_size = len(data)
     sample_mean = data.mean()
-
     standard_error = population_std / np.sqrt(sample_size)
 
     z_statistic = (sample_mean - hypothesized_mean) / standard_error
@@ -73,7 +169,7 @@ def run_one_sample_ztest(df, numeric_column, hypothesized_mean, population_std, 
 
     decision, conclusion = interpret_p_value(p_value, alpha)
 
-    result = {
+    return {
         "Test": "One-sample mean z-test",
         "H0": f"The population mean of {numeric_column} is equal to {hypothesized_mean}.",
         "H1": f"The population mean of {numeric_column} is not equal to {hypothesized_mean}.",
@@ -87,31 +183,59 @@ def run_one_sample_ztest(df, numeric_column, hypothesized_mean, population_std, 
         "p-value": p_value,
         "Alpha": alpha,
         "Decision": decision,
-        "Conclusion": conclusion
+        "Conclusion": conclusion,
     }
-
-    return result
 
 
 def plot_one_sample_ztest(df, numeric_column, hypothesized_mean):
     """
-    Histogram with sample mean and hypothesized mean.
+    Plotly histogram with sample mean and hypothesized mean.
     """
 
     data = prepare_numeric_data(df, numeric_column)
+    sample_mean = data.mean()
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.hist(data, bins=20, edgecolor="black", alpha=0.75)
+    fig.add_trace(
+        go.Histogram(
+            x=data,
+            nbinsx=25,
+            marker={
+                "color": PLOT_COLORS["primary"],
+                "line": {"color": "#FFFFFF", "width": 1},
+            },
+            opacity=0.88,
+            name="Observed values",
+            hovertemplate=f"{numeric_column}: %{{x}}<br>Count: %{{y}}<extra></extra>",
+        )
+    )
 
-    ax.axvline(data.mean(), linestyle="--", linewidth=2, label="Sample Mean")
-    ax.axvline(hypothesized_mean, linestyle="-", linewidth=2, label="Hypothesized Mean")
+    fig.add_vline(
+        x=sample_mean,
+        line_width=3,
+        line_dash="dash",
+        line_color=PLOT_COLORS["green"],
+        annotation_text="Sample Mean",
+        annotation_position="top left",
+    )
 
-    ax.set_title(f"One-sample z-test: {numeric_column}", fontsize=12)
-    ax.set_xlabel(numeric_column)
-    ax.set_ylabel("Frequency")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+    fig.add_vline(
+        x=hypothesized_mean,
+        line_width=3,
+        line_dash="dot",
+        line_color=PLOT_COLORS["warning"],
+        annotation_text="Hypothesized Mean",
+        annotation_position="top right",
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"One-sample z-test: {numeric_column}",
+        x_title=numeric_column,
+        y_title="Frequency",
+        height=430,
+    )
 
     return fig
 
@@ -128,7 +252,7 @@ def run_two_sample_ztest(
     group2,
     population_std1,
     population_std2,
-    alpha=0.05
+    alpha=0.05,
 ):
     """
     Two-sample mean z-test.
@@ -138,13 +262,13 @@ def run_two_sample_ztest(
     """
 
     group1_data = pd.to_numeric(
-        df[df[group_column] == group1][numeric_column],
-        errors="coerce"
+        df[df[group_column].astype(str) == str(group1)][numeric_column],
+        errors="coerce",
     ).dropna()
 
     group2_data = pd.to_numeric(
-        df[df[group_column] == group2][numeric_column],
-        errors="coerce"
+        df[df[group_column].astype(str) == str(group2)][numeric_column],
+        errors="coerce",
     ).dropna()
 
     if len(group1_data) < 2 or len(group2_data) < 2:
@@ -160,13 +284,12 @@ def run_two_sample_ztest(
     mean2 = group2_data.mean()
 
     standard_error = np.sqrt((population_std1 ** 2 / n1) + (population_std2 ** 2 / n2))
-
     z_statistic = (mean1 - mean2) / standard_error
     p_value = two_tailed_p_value_from_z(z_statistic)
 
     decision, conclusion = interpret_p_value(p_value, alpha)
 
-    result = {
+    return {
         "Test": "Two-sample mean z-test",
         "H0": f"The population mean of {numeric_column} is equal for {group1} and {group2}.",
         "H1": f"The population mean of {numeric_column} is different between {group1} and {group2}.",
@@ -186,35 +309,58 @@ def run_two_sample_ztest(
         "p-value": p_value,
         "Alpha": alpha,
         "Decision": decision,
-        "Conclusion": conclusion
+        "Conclusion": conclusion,
     }
-
-    return result
 
 
 def plot_two_sample_ztest(df, numeric_column, group_column, group1, group2):
     """
-    Boxplot comparing two groups.
+    Plotly boxplot comparing two groups.
     """
 
     group1_data = pd.to_numeric(
-        df[df[group_column] == group1][numeric_column],
-        errors="coerce"
+        df[df[group_column].astype(str) == str(group1)][numeric_column],
+        errors="coerce",
     ).dropna()
 
     group2_data = pd.to_numeric(
-        df[df[group_column] == group2][numeric_column],
-        errors="coerce"
+        df[df[group_column].astype(str) == str(group2)][numeric_column],
+        errors="coerce",
     ).dropna()
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.boxplot([group1_data, group2_data], tick_labels=[str(group1), str(group2)])
+    fig.add_trace(
+        go.Box(
+            y=group1_data,
+            name=str(group1),
+            marker_color=PLOT_COLORS["primary"],
+            line_color=PLOT_COLORS["primary"],
+            fillcolor="rgba(86, 180, 233, 0.28)",
+            boxmean=True,
+            hovertemplate=f"{group1}<br>{numeric_column}: %{{y}}<extra></extra>",
+        )
+    )
 
-    ax.set_title(f"{numeric_column} by {group_column}", fontsize=12)
-    ax.set_xlabel(group_column)
-    ax.set_ylabel(numeric_column)
-    ax.grid(True, alpha=0.3)
+    fig.add_trace(
+        go.Box(
+            y=group2_data,
+            name=str(group2),
+            marker_color=PLOT_COLORS["secondary"],
+            line_color=PLOT_COLORS["secondary"],
+            fillcolor="rgba(213, 94, 0, 0.24)",
+            boxmean=True,
+            hovertemplate=f"{group2}<br>{numeric_column}: %{{y}}<extra></extra>",
+        )
+    )
+
+    fig = apply_plotly_theme(
+        fig,
+        title=f"Two-sample z-test: {numeric_column} by {group_column}",
+        x_title=group_column,
+        y_title=numeric_column,
+        height=430,
+    )
 
     return fig
 
@@ -245,7 +391,6 @@ def run_one_proportion_ztest(df, categorical_column, success_category, hypothesi
     successes = int((data == success_category).sum())
 
     sample_proportion = successes / n
-
     standard_error = np.sqrt((hypothesized_proportion * (1 - hypothesized_proportion)) / n)
 
     z_statistic = (sample_proportion - hypothesized_proportion) / standard_error
@@ -253,7 +398,7 @@ def run_one_proportion_ztest(df, categorical_column, success_category, hypothesi
 
     decision, conclusion = interpret_p_value(p_value, alpha)
 
-    result = {
+    return {
         "Test": "One-proportion z-test",
         "H0": f"The population proportion of `{success_category}` in {categorical_column} is equal to {hypothesized_proportion}.",
         "H1": f"The population proportion of `{success_category}` in {categorical_column} is not equal to {hypothesized_proportion}.",
@@ -268,31 +413,45 @@ def run_one_proportion_ztest(df, categorical_column, success_category, hypothesi
         "p-value": p_value,
         "Alpha": alpha,
         "Decision": decision,
-        "Conclusion": conclusion
+        "Conclusion": conclusion,
     }
-
-    return result
 
 
 def plot_one_proportion_ztest(result):
     """
-    Bar chart comparing sample proportion and hypothesized proportion.
+    Plotly bar chart comparing sample proportion and hypothesized proportion.
     """
 
     labels = ["Sample Proportion", "Hypothesized Proportion"]
     values = [result["Sample Proportion"], result["Hypothesized Proportion"]]
+    text_values = [format_number(value) for value in values]
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.bar(labels, values, edgecolor="black")
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=values,
+            text=text_values,
+            textposition="outside",
+            marker={
+                "color": [PLOT_COLORS["primary"], PLOT_COLORS["warning"]],
+                "line": {"color": "#FFFFFF", "width": 1},
+            },
+            hovertemplate="Type: %{x}<br>Proportion: %{y:.5f}<extra></extra>",
+        )
+    )
 
-    ax.set_ylim(0, 1)
-    ax.set_title("Sample vs Hypothesized Proportion", fontsize=12)
-    ax.set_ylabel("Proportion")
-    ax.grid(True, axis="y", alpha=0.3)
+    fig = apply_plotly_theme(
+        fig,
+        title="Sample vs Hypothesized Proportion",
+        x_title="Proportion type",
+        y_title="Proportion",
+        height=430,
+    )
 
-    for i, value in enumerate(values):
-        ax.text(i, value, str(format_number(value)), ha="center", va="bottom")
+    fig.update_yaxes(range=[0, 1.08])
+    fig.update_xaxes(type="category")
 
     return fig
 
@@ -335,7 +494,6 @@ def run_two_proportion_ztest(df, outcome_column, success_category, group_column,
     p2 = success2 / n2
 
     pooled_proportion = (success1 + success2) / (n1 + n2)
-
     standard_error = np.sqrt(
         pooled_proportion * (1 - pooled_proportion) * ((1 / n1) + (1 / n2))
     )
@@ -348,7 +506,7 @@ def run_two_proportion_ztest(df, outcome_column, success_category, group_column,
 
     decision, conclusion = interpret_p_value(p_value, alpha)
 
-    result = {
+    return {
         "Test": "Two-proportion z-test",
         "H0": f"The proportion of `{success_category}` is equal for {group1} and {group2}.",
         "H1": f"The proportion of `{success_category}` is different between {group1} and {group2}.",
@@ -370,32 +528,45 @@ def run_two_proportion_ztest(df, outcome_column, success_category, group_column,
         "p-value": p_value,
         "Alpha": alpha,
         "Decision": decision,
-        "Conclusion": conclusion
+        "Conclusion": conclusion,
     }
-
-    return result
 
 
 def plot_two_proportion_ztest(result):
     """
-    Bar chart comparing two sample proportions.
+    Plotly bar chart comparing two sample proportions.
     """
 
     labels = [str(result["Group 1"]), str(result["Group 2"])]
     values = [result["Group 1 Proportion"], result["Group 2 Proportion"]]
+    text_values = [format_number(value) for value in values]
 
-    fig, ax = plt.subplots(figsize=(6.5, 3.8))
+    fig = go.Figure()
 
-    ax.bar(labels, values, edgecolor="black")
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=values,
+            text=text_values,
+            textposition="outside",
+            marker={
+                "color": [PLOT_COLORS["primary"], PLOT_COLORS["secondary"]],
+                "line": {"color": "#FFFFFF", "width": 1},
+            },
+            hovertemplate="Group: %{x}<br>Proportion: %{y:.5f}<extra></extra>",
+        )
+    )
 
-    ax.set_ylim(0, 1)
-    ax.set_title("Group Proportion Comparison", fontsize=12)
-    ax.set_xlabel(result["Group Column"])
-    ax.set_ylabel(f"Proportion of {result['Success Category']}")
-    ax.grid(True, axis="y", alpha=0.3)
+    fig = apply_plotly_theme(
+        fig,
+        title="Group Proportion Comparison",
+        x_title=result["Group Column"],
+        y_title=f"Proportion of {result['Success Category']}",
+        height=430,
+    )
 
-    for i, value in enumerate(values):
-        ax.text(i, value, str(format_number(value)), ha="center", va="bottom")
+    fig.update_yaxes(range=[0, 1.08])
+    fig.update_xaxes(type="category")
 
     return fig
 
@@ -419,7 +590,7 @@ def create_ztest_result_table(result):
 
         rows.append({
             "Metric": key,
-            "Value": format_number(value)
+            "Value": format_number(value),
         })
 
     return pd.DataFrame(rows)

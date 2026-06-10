@@ -4,18 +4,21 @@ import plotly.graph_objects as go
 from scipy import stats
 
 
+CHART_PALETTE = ["#56B4E9", "#D55E00", "#009E73", "#E69F00"]
+
 PLOT_COLORS = {
-    "primary": "#7C5CFF",
-    "secondary": "#A78BFA",
-    "blue": "#60A5FA",
-    "green": "#00B894",
-    "warning": "#F59E0B",
-    "error": "#EF4444",
-    "bg": "#181A1F",
-    "card": "#242529",
-    "grid": "#3A3B40",
-    "text": "#F5F5F5",
-    "muted": "#A3A3A3",
+    "primary": "#56B4E9",      # sky blue
+    "secondary": "#D55E00",    # vermillion
+    "green": "#009E73",        # bluish green
+    "warning": "#E69F00",      # warm orange
+    "blue": "#56B4E9",
+    "error": "#CC3311",
+    "bg": "#F7F9FC",
+    "card": "#FFFFFF",
+    "grid": "#E5E7EB",
+    "text": "#1F2937",
+    "muted": "#6B7280",
+    "border": "#D1D5DB",
 }
 
 
@@ -85,7 +88,7 @@ def prepare_numeric_data(df, column):
 
 def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
     """
-    Applies dark dashboard theme to Plotly figures.
+    Applies a soft professional light theme to Plotly figures.
     """
 
     fig.update_layout(
@@ -99,8 +102,9 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
         plot_bgcolor=PLOT_COLORS["card"],
         font={"color": PLOT_COLORS["text"], "family": "Arial"},
         height=height,
-        margin={"l": 45, "r": 25, "t": 60, "b": 45},
+        margin={"l": 48, "r": 28, "t": 62, "b": 48},
         hovermode="closest",
+        colorway=CHART_PALETTE,
         legend={
             "orientation": "h",
             "yanchor": "bottom",
@@ -115,18 +119,22 @@ def apply_plotly_theme(fig, title=None, x_title=None, y_title=None, height=420):
         title_text=x_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["border"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
     )
 
     fig.update_yaxes(
         title_text=y_title,
         gridcolor=PLOT_COLORS["grid"],
         zerolinecolor=PLOT_COLORS["grid"],
-        linecolor=PLOT_COLORS["grid"],
+        linecolor=PLOT_COLORS["border"],
         tickfont={"color": PLOT_COLORS["muted"]},
         title_font={"color": PLOT_COLORS["muted"]},
+        showline=True,
+        linewidth=1,
     )
 
     return fig
@@ -194,10 +202,10 @@ def plot_one_sample_ttest(df, numeric_column, hypothesized_mean):
             x=data,
             nbinsx=25,
             marker={
-                "color": PLOT_COLORS["secondary"],
-                "line": {"color": PLOT_COLORS["bg"], "width": 1},
+                "color": PLOT_COLORS["primary"],
+                "line": {"color": PLOT_COLORS["card"], "width": 1},
             },
-            opacity=0.85,
+            opacity=0.88,
             name="Observed values",
             hovertemplate=f"{numeric_column}: %{{x}}<br>Count: %{{y}}<extra></extra>",
         )
@@ -345,6 +353,8 @@ def plot_independent_ttest(df, numeric_column, group_column, group1, group2):
             y=group1_data,
             name=str(group1),
             marker_color=PLOT_COLORS["primary"],
+            line_color=PLOT_COLORS["primary"],
+            fillcolor="rgba(86, 180, 233, 0.24)",
             boxmean=True,
             hovertemplate=f"{group1}<br>{numeric_column}: %{{y}}<extra></extra>",
         )
@@ -355,6 +365,8 @@ def plot_independent_ttest(df, numeric_column, group_column, group1, group2):
             y=group2_data,
             name=str(group2),
             marker_color=PLOT_COLORS["secondary"],
+            line_color=PLOT_COLORS["secondary"],
+            fillcolor="rgba(213, 94, 0, 0.22)",
             boxmean=True,
             hovertemplate=f"{group2}<br>{numeric_column}: %{{y}}<extra></extra>",
         )
@@ -443,7 +455,7 @@ def plot_paired_ttest(df, before_column, after_column):
                 x=[before_column, after_column],
                 y=[row[before_column], row[after_column]],
                 mode="lines+markers",
-                line={"color": "rgba(167, 139, 250, 0.35)", "width": 1.5},
+                line={"color": "rgba(86, 180, 233, 0.30)", "width": 1.5},
                 marker={"size": 6, "color": PLOT_COLORS["primary"]},
                 showlegend=False,
                 hovertemplate="Measurement: %{x}<br>Value: %{y}<extra></extra>",
