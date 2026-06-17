@@ -16,6 +16,9 @@
 GitHub Repository:  
 **https://github.com/hidella-sand/python-statistics-dashboard.git**
 
+Live Application
+**https://sandeepstician.streamlit.app/**
+
 ---
 
 ## 🎯 Assignment Objective
