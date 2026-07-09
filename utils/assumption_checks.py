@@ -23,6 +23,36 @@ PLOT_COLORS = {
 CHART_COLORS = ["#56B4E9", "#D55E00", "#009E73", "#E69F00"]
 
 
+def hex_to_rgba(hex_color, opacity=0.20):
+    """
+    Converts a six-digit hexadecimal colour into a Plotly-compatible
+    rgba() colour string.
+
+    Plotly does not reliably accept eight-digit hexadecimal colours
+    such as #56B4E933 for trace fill colours.
+    """
+
+    clean_hex = str(hex_color).strip().lstrip("#")
+
+    if len(clean_hex) != 6:
+        raise ValueError(
+            "hex_color must be a valid six-digit hexadecimal colour."
+        )
+
+    try:
+        red = int(clean_hex[0:2], 16)
+        green = int(clean_hex[2:4], 16)
+        blue = int(clean_hex[4:6], 16)
+    except ValueError as error:
+        raise ValueError(
+            "hex_color must contain only valid hexadecimal characters."
+        ) from error
+
+    opacity = min(max(float(opacity), 0.0), 1.0)
+
+    return f"rgba({red}, {green}, {blue}, {opacity})"
+
+
 def format_number(value, decimals=5):
     """
     Formats numbers safely for tables and interpretations.
@@ -916,27 +946,52 @@ from statsmodels.formula.api import ols
 def _clean_anova_data(df, numeric_column, factor_columns):
     """
     Prepares data for ANOVA assumption checks.
+
+    Missing rows are removed before factor values are converted to
+    strings. This prevents missing values from becoming a false
+    category named ``"nan"``.
     """
 
-    required_columns = [numeric_column] + factor_columns
+    required_columns = [numeric_column] + list(factor_columns)
+
+    missing_columns = [
+        column for column in required_columns
+        if column not in df.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            "The following required column(s) are missing: "
+            + ", ".join(missing_columns)
+        )
 
     clean_df = df[required_columns].copy()
-    clean_df[numeric_column] = pd.to_numeric(clean_df[numeric_column], errors="coerce")
+
+    clean_df[numeric_column] = pd.to_numeric(
+        clean_df[numeric_column],
+        errors="coerce"
+    )
+
+    clean_df = clean_df.dropna(subset=required_columns)
 
     for factor in factor_columns:
         clean_df[factor] = clean_df[factor].astype(str)
 
-    clean_df = clean_df.dropna()
-
     if clean_df.empty:
-        raise ValueError("No valid data available after removing missing values.")
+        raise ValueError(
+            "No valid data available after removing missing values."
+        )
 
     if clean_df[numeric_column].nunique() < 2:
-        raise ValueError("The numerical outcome must contain at least two different values.")
+        raise ValueError(
+            "The numerical outcome must contain at least two different values."
+        )
 
     for factor in factor_columns:
         if clean_df[factor].nunique() < 2:
-            raise ValueError(f"The factor column `{factor}` must contain at least two groups.")
+            raise ValueError(
+                f"The factor column `{factor}` must contain at least two groups."
+            )
 
     return clean_df
 
@@ -1339,7 +1394,7 @@ def plot_anova_group_boxplot(clean_df, numeric_column, factor_column):
                 boxmean=True,
                 marker_color=color,
                 line_color=color,
-                fillcolor=color + "33",
+                fillcolor=hex_to_rgba(color, 0.20),
                 hovertemplate=f"{factor_column}: {group_name}<br>{numeric_column}: %{{y}}<extra></extra>",
             )
         )
@@ -1351,6 +1406,9 @@ def plot_anova_group_boxplot(clean_df, numeric_column, factor_column):
         y_title=numeric_column,
         height=420,
     )
+
+    fig.update_xaxes(type="category")
+    fig.update_layout(showlegend=False)
 
     return fig
 
@@ -1372,7 +1430,7 @@ def plot_anova_cell_boxplot(clean_df, numeric_column, cell_column):
                 boxmean=True,
                 marker_color=color,
                 line_color=color,
-                fillcolor=color + "33",
+                fillcolor=hex_to_rgba(color, 0.20),
                 hovertemplate=f"Cell: {cell_name}<br>{numeric_column}: %{{y}}<extra></extra>",
             )
         )
@@ -1385,7 +1443,11 @@ def plot_anova_cell_boxplot(clean_df, numeric_column, cell_column):
         height=460,
     )
 
-    fig.update_xaxes(tickangle=25)
+    fig.update_xaxes(
+        type="category",
+        tickangle=25
+    )
+    fig.update_layout(showlegend=False)
 
     return fig
 
@@ -1574,9 +1636,9 @@ def check_chi_square_independence_assumptions(df, row_column, column_column, alp
     """
 
     clean_df = df[[row_column, column_column]].copy()
+    clean_df = clean_df.dropna(subset=[row_column, column_column])
     clean_df[row_column] = clean_df[row_column].astype(str)
     clean_df[column_column] = clean_df[column_column].astype(str)
-    clean_df = clean_df.dropna()
 
     if clean_df.empty:
         raise ValueError("No valid rows available for selected categorical variables.")
